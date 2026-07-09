@@ -1,0 +1,59 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma" // CHANGED: Moves it cleanly inside NestJS source
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// 1. Define the Cheque Type Enum
+enum ChequeType {
+  INWARD
+  OUTWARD
+}
+
+// 2. Define the Cheque Status Enum
+enum ChequeStatus {
+  PENDING
+  DEPOSITED
+  REALISED
+  BOUNCED
+  CANCELLED
+}
+
+// 3. Define the Cheque Table Model
+model Cheque {
+  id               Int          @id @default(autoincrement())
+  chequeType       ChequeType
+  chequeNo         String
+  bankName         String
+  branchName       String?      // The '?' means this field is optional
+  amount           Decimal      @db.Decimal(13, 2)
+  partyName        String
+  entryDate        DateTime     @default(now())
+  chequeDate       DateTime
+  realisingDate    DateTime?
+  status           ChequeStatus @default(PENDING)
+  imageFrontPath   String?
+  imageBackPath    String?
+  notes            String?      @db.Text
+  ourAccount      String?  // <-- ADD THIS LINE TO STORE YOUR COMPANY ACCOUNT NAME/NO
+  createdAt       DateTime @default(now())
+
+  @@map("cheques") // This maps the Prisma model to a lowercase "cheques" table in Postgres
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  password  String   // Hashed password
+  role      UserRole @default(USER)
+  createdAt DateTime @default(now())
+}

@@ -1,0 +1,22 @@
+# Frontend Build Artifacts
+cheque-frontend/.next/
+cheque-frontend/out/
+cheque-frontend/build/
+
+# Backend Build Artifacts
+cheque-backend/dist/
+cheque-backend/src/generated/prisma/
+
+# Universal Dependencies & Environment Blocks
+node_modules/
+**/node_modules/
+.env
+*.env.*
+**/ .env
+
+# Local Cache & System files
+*.db
+*.db-journal
+.DS_Store
+.vscode/
+.idea/
