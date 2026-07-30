@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { getApiBaseUrl } from '@/app/config';
 
 // Central Bank of Sri Lanka (CBSL) Cleared Major Operating Banks List
 const SRI_LANKAN_BANKS = [
@@ -8,7 +9,7 @@ const SRI_LANKAN_BANKS = [
   { code: 'COM', name: 'Commercial Bank of Ceylon' },
   { code: 'HNB', name: 'Hatton National Bank' },
   { code: 'SAMP', name: 'Sampath Bank' },
-  { code: 'PEOPLE', name: 'People\'s Bank' },
+  { code: 'PEOPLE', name: "People's Bank" },
   { code: 'NDB', name: 'National Development Bank (NDB)' },
   { code: 'DFCC', name: 'DFCC Bank' },
   { code: 'NTB', name: 'Nations Trust Bank (NTB)' },
@@ -30,15 +31,15 @@ const SRI_LANKAN_BANKS = [
   { code: 'HABIB', name: 'Habib Bank Limited' },
 ].sort((a, b) => a.name.localeCompare(b.name));
 
-// The Company's 7 Official Bank Accounts extracted from your document
+// Official Company Bank Accounts
 const OUR_COMPANY_ACCOUNTS = [
-  { id: 'smart_com_gampaha', label: 'Commercial Bank - Gampaha (1000576908) - SMART TECHNOLOGY' }, // [cite: 1, 2, 3, 4]
-  { id: 'niro_boc_gampaha', label: 'Bank of Ceylon - Gampaha (0090311554) - J.W.M.D NIROSHANI' }, // [cite: 5, 6, 7, 8]
-  { id: 'sap_boc_gampaha', label: 'Bank of Ceylon - Gampaha (0090900272) - SAP COMPUTERS (PVT) LTD' }, // [cite: 9, 10, 11, 12]
-  { id: 'niro_sampath_super', label: 'Sampath Bank - Gampaha Super (121252154844) - J.W.M.D NIROSHANI' }, // [cite: 13, 14, 15, 16]
-  { id: 'sap_sampath_yakkala', label: 'Sampath Bank - Yakkala (106814013791) - SAP COMPUTERS' }, // [cite: 17, 18, 19, 20]
-  { id: 'niro_sampath_yakkala', label: 'Sampath Bank - Yakkala (106857000032) - J.W.M.D NIROSHANI' }, // [cite: 21, 22, 23, 24]
-  { id: 'smart_boc_gampaha', label: 'Bank of Ceylon - Gampaha (95989405) - SMART TECHNOLOGY' }, // [cite: 25, 26, 27, 28]
+  { id: 'smart_com_gampaha', label: 'Commercial Bank - Gampaha (1000576908) - SMART TECHNOLOGY' },
+  { id: 'niro_boc_gampaha', label: 'Bank of Ceylon - Gampaha (0090311554) - J.W.M.D NIROSHANI' },
+  { id: 'sap_boc_gampaha', label: 'Bank of Ceylon - Gampaha (0090900272) - SAP COMPUTERS (PVT) LTD' },
+  { id: 'niro_sampath_super', label: 'Sampath Bank - Gampaha Super (121252154844) - J.W.M.D NIROSHANI' },
+  { id: 'sap_sampath_yakkala', label: 'Sampath Bank - Yakkala (106814013791) - SAP COMPUTERS' },
+  { id: 'niro_sampath_yakkala', label: 'Sampath Bank - Yakkala (106857000032) - J.W.M.D NIROSHANI' },
+  { id: 'smart_boc_gampaha', label: 'Bank of Ceylon - Gampaha (95989405) - SMART TECHNOLOGY' },
 ];
 
 export default function ChequeForm({ onChequeAdded }: { onChequeAdded: () => void }) {
@@ -51,11 +52,12 @@ export default function ChequeForm({ onChequeAdded }: { onChequeAdded: () => voi
     partyName: '',
     chequeDate: '',
     notes: '',
-    ourAccount: '', // <-- Added form data state field property
+    ourAccount: '',
   });
 
   const [imageFront, setImageFront] = useState<File | null>(null);
   const [imageBack, setImageBack] = useState<File | null>(null);
+  const [fileInputKey, setFileInputKey] = useState<number>(Date.now());
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -78,7 +80,9 @@ export default function ChequeForm({ onChequeAdded }: { onChequeAdded: () => voi
     if (imageBack) uploadData.append('imageBack', imageBack);
 
     try {
-      const response = await fetch('http://localhost:3000/cheques/upload', {
+      // Dynamic API URL lookup at execution time
+      const baseUrl = getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/cheques/upload`, {
         method: 'POST',
         body: uploadData,
       });
@@ -94,10 +98,11 @@ export default function ChequeForm({ onChequeAdded }: { onChequeAdded: () => voi
           partyName: '',
           chequeDate: '',
           notes: '',
-          ourAccount: '', // Clear field on successful post
+          ourAccount: '',
         });
         setImageFront(null);
         setImageBack(null);
+        setFileInputKey(Date.now());
         onChequeAdded();
       } else {
         showNotification('Transmission rejected. Please verify form data accuracy.', 'error');
@@ -110,13 +115,17 @@ export default function ChequeForm({ onChequeAdded }: { onChequeAdded: () => voi
     }
   };
 
+  const isInward = formData.chequeType === 'INWARD';
+
   return (
     <div className="relative">
       {/* FLOATING SYSTEM TOAST ALERT */}
       {toast && (
-        <div className={`fixed bottom-5 right-5 z-50 flex items-center p-4 rounded-lg shadow-xl text-white border transition-all duration-300 transform translate-y-0 animate-bounce ${
-          toast.type === 'success' ? 'bg-emerald-600 border-emerald-500' : 'bg-rose-600 border-rose-500'
-        }`}>
+        <div
+          className={`fixed bottom-5 right-5 z-50 flex items-center p-4 rounded-lg shadow-xl text-white border transition-all duration-300 transform translate-y-0 ${
+            toast.type === 'success' ? 'bg-emerald-600 border-emerald-500' : 'bg-rose-600 border-rose-500'
+          }`}
+        >
           <div className="flex items-center space-x-2">
             <span>{toast.type === 'success' ? '✅' : '❌'}</span>
             <span className="font-semibold text-sm tracking-wide">{toast.message}</span>
@@ -129,52 +138,77 @@ export default function ChequeForm({ onChequeAdded }: { onChequeAdded: () => voi
           <span>Add New Cheque Entry</span>
           {loading && <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded animate-pulse">Syncing...</span>}
         </h2>
-        
+
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-semibold text-gray-700">Cheque Type</label>
-            <select name="chequeType" value={formData.chequeType} onChange={handleInputChange} className="w-full mt-1 p-2 border rounded-md text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none text-sm bg-white">
+            <select
+              name="chequeType"
+              value={formData.chequeType}
+              onChange={handleInputChange}
+              className="w-full mt-1 p-2 border rounded-md text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none text-sm bg-white"
+            >
               <option value="INWARD">Received (Inward)</option>
-              <option value="OUTWARD">Issued (Our Cheque to Others)</option>
+              <option value="OUTWARD">Issued (Outward - Our Cheque)</option>
             </select>
           </div>
 
           <div>
             <label className="block text-sm font-semibold text-gray-700">Cheque No</label>
-            <input type="text" name="chequeNo" value={formData.chequeNo} onChange={handleInputChange} required className="w-full mt-1 p-2 border rounded-md text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none font-mono text-sm" />
+            <input
+              type="text"
+              name="chequeNo"
+              value={formData.chequeNo}
+              onChange={handleInputChange}
+              required
+              className="w-full mt-1 p-2 border rounded-md text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none font-mono text-sm"
+            />
           </div>
 
-         {/* DYNAMIC OUR COMPANY BANK ACCOUNT DROPDOWN FIELD SELECTION */}
-        <div className="col-span-2">
-          <label className="block text-sm font-semibold text-gray-700">
-            {formData.chequeType === 'INWARD' 
-              ? 'Deposit Account (Where we are banking this cheque)' 
-              : 'Source Account (Which of our accounts issued this cheque)'}
-          </label>
-          <select 
-            name="ourAccount" 
-            value={formData.ourAccount} 
-            onChange={handleInputChange} 
-            required 
-            className="w-full mt-1 p-2 border rounded-md text-gray-700 border-amber-300 bg-amber-50/30 focus:ring-1 focus:ring-blue-500 focus:outline-none text-sm font-medium"
-          >
-            <option value="" disabled>
-              {formData.chequeType === 'INWARD'
-                ? '-- Select Our Target Deposit Account --'
-                : '-- Select Our Issuing Bank Account --'}
-            </option>
-            {OUR_COMPANY_ACCOUNTS.map((account) => (
-              <option key={account.id} value={account.label}>
-                {account.label}
+          {/* DYNAMIC OUR COMPANY BANK ACCOUNT DROPDOWN */}
+          <div className="col-span-2">
+            <label className="block text-sm font-semibold text-gray-700">
+              {isInward ? 'Target Deposit Account (Our Bank Account)' : 'Source Issuing Account (Which of Our Accounts Issued This Cheque)'}
+            </label>
+            <select
+              name="ourAccount"
+              value={formData.ourAccount}
+              onChange={handleInputChange}
+              required
+              className={`w-full mt-1 p-2 border rounded-md text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none text-sm font-medium ${
+                isInward ? 'border-amber-300 bg-amber-50/30' : 'border-orange-300 bg-orange-50/30'
+              }`}
+            >
+              <option value="" disabled>
+                {isInward ? '-- Select Our Target Deposit Account --' : '-- Select Our Issuing Bank Account --'}
               </option>
-            ))}
-          </select>
-        </div>
+              {OUR_COMPANY_ACCOUNTS.map((account) => (
+                <option key={account.id} value={account.label}>
+                  {account.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              {isInward
+                ? 'Select the internal account where this received cheque will be deposited.'
+                : 'Select our company account from which money will be debited.'}
+            </p>
+          </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700">Bank Name</label>
-            <select name="bankName" value={formData.bankName} onChange={handleInputChange} required className="w-full mt-1 p-2 border rounded-md text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none text-sm bg-white">
-              <option value="" disabled>-- Select Local Bank --</option>
+            <label className="block text-sm font-semibold text-gray-700">
+              {isInward ? 'Drawn Bank Name' : 'Issuing Bank Name'}
+            </label>
+            <select
+              name="bankName"
+              value={formData.bankName}
+              onChange={handleInputChange}
+              required
+              className="w-full mt-1 p-2 border rounded-md text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none text-sm bg-white"
+            >
+              <option value="" disabled>
+                -- Select Local Bank --
+              </option>
               {SRI_LANKAN_BANKS.map((bank) => (
                 <option key={bank.code} value={bank.name}>
                   {bank.name}
@@ -185,42 +219,96 @@ export default function ChequeForm({ onChequeAdded }: { onChequeAdded: () => voi
 
           <div>
             <label className="block text-sm font-semibold text-gray-700">Branch Name</label>
-            <input type="text" name="branchName" value={formData.branchName} onChange={handleInputChange} placeholder="e.g. Veyangoda, Colombo 07" className="w-full mt-1 p-2 border rounded-md text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none text-sm" />
+            <input
+              type="text"
+              name="branchName"
+              value={formData.branchName}
+              onChange={handleInputChange}
+              placeholder="e.g. Veyangoda, Colombo 07"
+              className="w-full mt-1 p-2 border rounded-md text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none text-sm"
+            />
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700">Amount</label>
-            <input type="number" name="amount" step="0.01" value={formData.amount} onChange={handleInputChange} required className="w-full mt-1 p-2 border rounded-md text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none text-sm" />
+            <label className="block text-sm font-semibold text-gray-700">Amount (LKR)</label>
+            <input
+              type="number"
+              name="amount"
+              step="0.01"
+              value={formData.amount}
+              onChange={handleInputChange}
+              required
+              className="w-full mt-1 p-2 border rounded-md text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none text-sm"
+            />
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700">Party Name</label>
-            <input type="text" name="partyName" value={formData.partyName} onChange={handleInputChange} required placeholder="Received From / Paid To" className="w-full mt-1 p-2 border rounded-md text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none text-sm" />
+            <label className="block text-sm font-semibold text-gray-700">
+              {isInward ? 'Payer (Received From)' : 'Payee (Paid To)'}
+            </label>
+            <input
+              type="text"
+              name="partyName"
+              value={formData.partyName}
+              onChange={handleInputChange}
+              required
+              placeholder={isInward ? 'e.g. Customer / Vendor Name' : 'e.g. Supplier / Recipient Name'}
+              className="w-full mt-1 p-2 border rounded-md text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none text-sm"
+            />
           </div>
 
           <div className="col-span-2">
             <label className="block text-sm font-semibold text-gray-700">Cheque Date</label>
-            <input type="date" name="chequeDate" value={formData.chequeDate} onChange={handleInputChange} required className="w-full mt-1 p-2 border rounded-md text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none text-sm" />
+            <input
+              type="date"
+              name="chequeDate"
+              value={formData.chequeDate}
+              onChange={handleInputChange}
+              required
+              className="w-full mt-1 p-2 border rounded-md text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none text-sm"
+            />
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4 border-t pt-4">
           <div>
             <label className="block text-sm font-semibold text-gray-700">Front Image</label>
-            <input type="file" accept="image/*" key={imageFront ? imageFront.name : 'front'} onChange={(e) => setImageFront(e.target.files?.[0] || null)} className="w-full text-xs mt-1 text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer" />
+            <input
+              type="file"
+              accept="image/*"
+              key={`front-${fileInputKey}`}
+              onChange={(e) => setImageFront(e.target.files?.[0] || null)}
+              className="w-full text-xs mt-1 text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+            />
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700">Back Image</label>
-            <input type="file" accept="image/*" key={imageBack ? imageBack.name : 'back'} onChange={(e) => setImageBack(e.target.files?.[0] || null)} className="w-full text-xs mt-1 text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer" />
+            <input
+              type="file"
+              accept="image/*"
+              key={`back-${fileInputKey}`}
+              onChange={(e) => setImageBack(e.target.files?.[0] || null)}
+              className="w-full text-xs mt-1 text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+            />
           </div>
         </div>
 
         <div>
           <label className="block text-sm font-semibold text-gray-700">Internal Remarks / Notes</label>
-          <textarea name="notes" value={formData.notes} onChange={handleInputChange} rows={2} className="w-full mt-1 p-2 border rounded-md text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none text-sm" />
+          <textarea
+            name="notes"
+            value={formData.notes}
+            onChange={handleInputChange}
+            rows={2}
+            className="w-full mt-1 p-2 border rounded-md text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none text-sm"
+          />
         </div>
 
-        <button type="submit" disabled={loading} className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold p-2.5 rounded-md transition duration-200 disabled:bg-slate-400 flex items-center justify-center space-x-2 shadow cursor-pointer">
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold p-2.5 rounded-md transition duration-200 disabled:bg-slate-400 flex items-center justify-center space-x-2 shadow cursor-pointer"
+        >
           <span>{loading ? 'Processing Ledger Records...' : 'Save Cheque Entry'}</span>
         </button>
       </form>

@@ -1,99 +1,232 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
+import { Cheque } from '@/types';
 
-interface Cheque {
-  id: number;
-  chequeType: 'INWARD' | 'OUTWARD';
-  amount: string;
-  status: 'PENDING' | 'DEPOSITED' | 'REALISED' | 'BOUNCED' | 'CANCELLED';
+interface DashboardStatsProps {
+  cheques: Cheque[];
 }
 
-export default function DashboardStats({ cheques }: { cheques: Cheque[] }) {
-  const calculations = cheques.reduce(
-    (acc, chq) => {
-      const amt = parseFloat(chq.amount) || 0;
-      
-      if (chq.status === 'PENDING' || chq.status === 'DEPOSITED') {
-        if (chq.chequeType === 'INWARD') acc.pendingInward += amt;
-        if (chq.chequeType === 'OUTWARD') acc.pendingOutward += amt;
-      }
-      if (chq.status === 'REALISED') {
-        if (chq.chequeType === 'INWARD') acc.realisedInward += amt;
-        if (chq.chequeType === 'OUTWARD') acc.realisedOutward += amt;
-      }
-      if (chq.status === 'BOUNCED') {
-        if (chq.chequeType === 'INWARD') acc.bouncedInward += amt;
-        if (chq.chequeType === 'OUTWARD') acc.bouncedOutward += amt;
-      }
-      return acc;
-    },
-    { 
-      pendingInward: 0, 
-      pendingOutward: 0, 
-      realisedInward: 0, 
-      realisedOutward: 0, 
-      bouncedInward: 0, 
-      bouncedOutward: 0 
-    }
-  );
+export default function DashboardStats({ cheques }: DashboardStatsProps) {
+  // Compute all metrics in a single loop for optimal performance
+  const metrics = useMemo(() => {
+    const parseAmount = (item: Cheque): number => {
+      if (typeof item.amount === 'number') return item.amount;
+      return parseFloat(item.amount || '0') || 0;
+    };
 
-  const formatCurrency = (val: number) => {
-    return 'Rs. ' + val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  };
+    const isMatch = (val: string | undefined, target: string) =>
+      val?.toUpperCase() === target.toUpperCase();
+
+    const isCleared = (status?: string) => {
+      const upper = status?.toUpperCase();
+      return upper === 'REALISED' || upper === 'CLEARED';
+    };
+
+    let inwardTotalCount = 0;
+    let inwardTotalAmount = 0;
+    let inwardPendingCount = 0;
+    let inwardPendingAmount = 0;
+    let inwardClearedCount = 0;
+    let inwardClearedAmount = 0;
+
+    let outwardTotalCount = 0;
+    let outwardTotalAmount = 0;
+    let outwardPendingCount = 0;
+    let outwardPendingAmount = 0;
+    let outwardClearedCount = 0;
+    let outwardClearedAmount = 0;
+
+    let bouncedCount = 0;
+
+    for (const c of cheques) {
+      const amt = parseAmount(c);
+      const isInward = isMatch(c.chequeType, 'INWARD');
+      const isOutward = isMatch(c.chequeType, 'OUTWARD');
+
+      if (isMatch(c.status, 'BOUNCED')) {
+        bouncedCount++;
+      }
+
+      if (isInward) {
+        inwardTotalCount++;
+        inwardTotalAmount += amt;
+
+        if (isMatch(c.status, 'PENDING') || isMatch(c.status, 'DEPOSITED')) {
+          inwardPendingCount++;
+          inwardPendingAmount += amt;
+        } else if (isCleared(c.status)) {
+          inwardClearedCount++;
+          inwardClearedAmount += amt;
+        }
+      } else if (isOutward) {
+        outwardTotalCount++;
+        outwardTotalAmount += amt;
+
+        if (isMatch(c.status, 'PENDING')) {
+          outwardPendingCount++;
+          outwardPendingAmount += amt;
+        } else if (isCleared(c.status)) {
+          outwardClearedCount++;
+          outwardClearedAmount += amt;
+        }
+      }
+    }
+
+    return {
+      inward: {
+        totalCount: inwardTotalCount,
+        totalAmount: inwardTotalAmount,
+        pendingCount: inwardPendingCount,
+        pendingAmount: inwardPendingAmount,
+        clearedCount: inwardClearedCount,
+        clearedAmount: inwardClearedAmount,
+      },
+      outward: {
+        totalCount: outwardTotalCount,
+        totalAmount: outwardTotalAmount,
+        pendingCount: outwardPendingCount,
+        pendingAmount: outwardPendingAmount,
+        clearedCount: outwardClearedCount,
+        clearedAmount: outwardClearedAmount,
+      },
+      bouncedCount,
+    };
+  }, [cheques]);
+
+  const formatLKR = (amount: number) =>
+    `LKR ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 w-full">
-      {/* 1. UNREALISED / OPEN COMMITMENTS CARD GRID */}
-      <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200 flex flex-col justify-between space-y-4">
-        <h3 className="text-sm font-bold text-slate-800 border-b pb-2 tracking-tight uppercase bg-slate-50 -mx-5 -mt-5 p-3 rounded-t-lg">
-          ⏳ In-Flight Pipeline (Unrealised)
-        </h3>
-        <div className="space-y-3">
-          <div className="border-l-4 border-amber-500 pl-3">
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Receivable (Pending Inward)</div>
-            <div className="text-lg font-black text-slate-800 mt-0.5">{formatCurrency(calculations.pendingInward)}</div>
-          </div>
-          <div className="border-l-4 border-blue-500 pl-3">
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Payable (Our Pending Outward)</div>
-            <div className="text-lg font-black text-slate-800 mt-0.5">{formatCurrency(calculations.pendingOutward)}</div>
-          </div>
+    <div className="space-y-6">
+      {/* INWARD CHEQUES SECTION */}
+      <section>
+        <div className="flex items-center space-x-2 mb-3">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" />
+          <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+            Inward Cheques (Received)
+          </h3>
         </div>
-      </div>
 
-      {/* 2. REALISED / CLEARED CASHFLOW SETTLEMENTS */}
-      <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200 flex flex-col justify-between space-y-4">
-        <h3 className="text-sm font-bold text-emerald-800 border-b pb-2 tracking-tight uppercase bg-emerald-50/50 -mx-5 -mt-5 p-3 rounded-t-lg">
-          ✅ Cleared Ledger Settlements
-        </h3>
-        <div className="space-y-3">
-          <div className="border-l-4 border-emerald-500 pl-3">
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Inward Realised (Cash Inflow)</div>
-            <div className="text-lg font-black text-emerald-700 mt-0.5">{formatCurrency(calculations.realisedInward)}</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* Total Inward */}
+          <div className="bg-gradient-to-br from-emerald-50/80 to-emerald-100/30 p-4 rounded-xl border border-emerald-200/80 shadow-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">
+                Total Inward
+              </span>
+              <span className="text-[11px] bg-emerald-200/80 text-emerald-900 px-2.5 py-0.5 rounded-full font-bold">
+                {metrics.inward.totalCount} Cheques
+              </span>
+            </div>
+            <p className="text-xl font-black text-emerald-950 mt-3 tracking-tight">
+              {formatLKR(metrics.inward.totalAmount)}
+            </p>
           </div>
-          <div className="border-l-4 border-teal-600 pl-3">
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Our Outward Realised (Cash Outflow)</div>
-            <div className="text-lg font-black text-slate-700 mt-0.5">{formatCurrency(calculations.realisedOutward)}</div>
-          </div>
-        </div>
-      </div>
 
-      {/* 3. RETURNED EXPOSURES & LIABILITIES */}
-      <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200 flex flex-col justify-between space-y-4 md:col-span-2 lg:col-span-1">
-        <h3 className="text-sm font-bold text-rose-800 border-b pb-2 tracking-tight uppercase bg-rose-50/50 -mx-5 -mt-5 p-3 rounded-t-lg">
-          ⚠️ Transaction Failure Logs (Bounced)
-        </h3>
-        <div className="space-y-3">
-          <div className="border-l-4 border-rose-500 pl-3">
-            <div className="text-xs font-semibold text-rose-400 uppercase tracking-wider">Client Bounced (Inward Deficit)</div>
-            <div className="text-lg font-black text-rose-700 mt-0.5">{formatCurrency(calculations.bouncedInward)}</div>
+          {/* Pending Inward */}
+          <div className="bg-gradient-to-br from-amber-50/80 to-amber-100/30 p-4 rounded-xl border border-amber-200/80 shadow-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">
+                Pending / Deposited
+              </span>
+              <span className="text-[11px] bg-amber-200/80 text-amber-900 px-2.5 py-0.5 rounded-full font-bold">
+                {metrics.inward.pendingCount}
+              </span>
+            </div>
+            <p className="text-xl font-black text-amber-950 mt-3 tracking-tight">
+              {formatLKR(metrics.inward.pendingAmount)}
+            </p>
           </div>
-          <div className="border-l-4 border-purple-600 pl-3">
-            <div className="text-xs font-semibold text-purple-400 uppercase tracking-wider">Our Bounced (Outward Breach Risk)</div>
-            <div className="text-lg font-black text-purple-700 mt-0.5">{formatCurrency(calculations.bouncedOutward)}</div>
+
+          {/* Cleared Inward */}
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Realised / Cleared
+              </span>
+              <span className="text-[11px] bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-full font-bold">
+                {metrics.inward.clearedCount}
+              </span>
+            </div>
+            <p className="text-xl font-black text-emerald-600 mt-3 tracking-tight">
+              {formatLKR(metrics.inward.clearedAmount)}
+            </p>
           </div>
         </div>
-      </div>
+      </section>
+
+      {/* OUTWARD CHEQUES SECTION */}
+      <section>
+        <div className="flex items-center space-x-2 mb-3">
+          <span className="w-2.5 h-2.5 rounded-full bg-orange-500 shadow-sm shadow-orange-500/50" />
+          <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+            Outward Cheques (Issued)
+          </h3>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* Total Outward */}
+          <div className="bg-gradient-to-br from-orange-50/80 to-orange-100/30 p-4 rounded-xl border border-orange-200/80 shadow-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold text-orange-800 uppercase tracking-wider">
+                Total Outward
+              </span>
+              <span className="text-[11px] bg-orange-200/80 text-orange-900 px-2.5 py-0.5 rounded-full font-bold">
+                {metrics.outward.totalCount} Cheques
+              </span>
+            </div>
+            <p className="text-xl font-black text-orange-950 mt-3 tracking-tight">
+              {formatLKR(metrics.outward.totalAmount)}
+            </p>
+          </div>
+
+          {/* Pending Outward */}
+          <div className="bg-gradient-to-br from-amber-50/80 to-amber-100/30 p-4 rounded-xl border border-amber-200/80 shadow-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">
+                Pending Clearance
+              </span>
+              <span className="text-[11px] bg-amber-200/80 text-amber-900 px-2.5 py-0.5 rounded-full font-bold">
+                {metrics.outward.pendingCount}
+              </span>
+            </div>
+            <p className="text-xl font-black text-amber-950 mt-3 tracking-tight">
+              {formatLKR(metrics.outward.pendingAmount)}
+            </p>
+          </div>
+
+          {/* Cleared Outward */}
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Realised / Debited
+              </span>
+              <span className="text-[11px] bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-full font-bold">
+                {metrics.outward.clearedCount}
+              </span>
+            </div>
+            <p className="text-xl font-black text-slate-800 mt-3 tracking-tight">
+              {formatLKR(metrics.outward.clearedAmount)}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* BOUNCED SUMMARY ALERT */}
+      {metrics.bouncedCount > 0 && (
+        <div className="bg-rose-50 border border-rose-200/80 p-3.5 rounded-xl flex items-center justify-between text-rose-900 shadow-sm">
+          <div className="flex items-center space-x-2">
+            <svg className="w-4 h-4 text-rose-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span className="text-xs font-bold">Bounced Cheques Flagged</span>
+          </div>
+          <span className="text-xs font-extrabold bg-rose-200/80 text-rose-950 px-3 py-1 rounded-full">
+            {metrics.bouncedCount} Bounced Record{metrics.bouncedCount > 1 ? 's' : ''}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
