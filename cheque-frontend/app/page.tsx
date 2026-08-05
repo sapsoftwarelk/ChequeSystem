@@ -7,8 +7,7 @@ import ChequeReport from '@/components/ChequeReport';
 import DashboardStats from '@/components/DashboardStats';
 import Login from '@/components/Login';
 import { Cheque, User } from '@/types';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.1.13:5000';
+import { getApiBaseUrl } from '@/app/config';
 
 export default function Home() {
   const [cheques, setCheques] = useState<Cheque[]>([]);
@@ -59,7 +58,8 @@ export default function Home() {
       try {
         if (!isSilent) setIsSyncing(true);
 
-        const response = await fetch(`${API_BASE_URL}/cheques`, {
+        const baseUrl = getApiBaseUrl();
+        const response = await fetch(`${baseUrl}/cheques`, {
           headers: {
             Authorization: token.startsWith('Bearer ') ? token : `Bearer ${token}`,
             'Content-Type': 'application/json',
@@ -148,6 +148,7 @@ export default function Home() {
             </p>
           </div>
           <button
+            type="button"
             onClick={handleLogout}
             className="bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold px-3 py-1.5 rounded transition cursor-pointer"
           >
@@ -158,7 +159,11 @@ export default function Home() {
         {/* REAL-TIME SYNC BAR */}
         <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
           <div className="text-xs text-slate-600 flex items-center space-x-2 font-medium">
-            <span className={`h-2.5 w-2.5 rounded-full ${isSyncing ? 'bg-amber-500 animate-ping' : 'bg-emerald-500'}`} />
+            <span
+              className={`h-2.5 w-2.5 rounded-full ${
+                isSyncing ? 'bg-amber-500 animate-ping' : 'bg-emerald-500'
+              }`}
+            />
             <span>
               {isSyncing
                 ? 'Syncing ledger data...'
@@ -168,6 +173,7 @@ export default function Home() {
             </span>
           </div>
           <button
+            type="button"
             onClick={() => fetchCheques()}
             disabled={isSyncing}
             className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded shadow-sm disabled:opacity-50 transition cursor-pointer flex items-center space-x-1"
@@ -183,7 +189,7 @@ export default function Home() {
         <div className="grid grid-cols-1 gap-6">
           {/* ADMIN ONLY: Add Cheque Entry Form */}
           {isAdmin ? (
-            <ChequeForm onChequeAdded={() => fetchCheques()} />
+            <ChequeForm onChequeAdded={() => fetchCheques()} token={token} />
           ) : (
             <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs p-3 rounded font-semibold">
               🔒 Standard User profile constraints active. Entry logs collection additions are managed by System Admins.
@@ -191,13 +197,14 @@ export default function Home() {
           )}
 
           {/* ADMIN ONLY: Audit Search & Print Engine */}
-          {isAdmin && <ChequeReport />}
+          {isAdmin && <ChequeReport token={token} />}
 
           {/* BOTH ROLES VIEW */}
           <ChequeList
             cheques={cheques}
             onStatusUpdated={() => fetchCheques()}
             isAdmin={isAdmin}
+            token={token}
           />
         </div>
       </div>

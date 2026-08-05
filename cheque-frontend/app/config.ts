@@ -1,23 +1,31 @@
-// cheque-frontend/src/app/config.ts
+// cheque-frontend/app/config.ts
 
 /**
  * Dynamically determines the backend API base URL.
- * At runtime on the client, it grabs the browser's current hostname (e.g., 'DESKTOP-GTKD861' or an IP)
- * so requests dynamically target port 5000 on the same machine.
+ * Prioritizes process.env.NEXT_PUBLIC_API_URL if set.
  */
 export const getApiBaseUrl = (): string => {
+  // 1. Always prioritize configured environment variable
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+
+  // 2. Client-side fallback: check if running over HTTPS
   if (typeof window !== 'undefined') {
+    if (window.location.protocol === 'https:') {
+      return `https://${window.location.hostname}/api`;
+    }
     const host = window.location.hostname;
     return `http://${host}:5000`;
   }
 
-  // Fallback for Server-Side Rendering (SSR) / build time
-  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+  // 3. Fallback for SSR / Local Development
+  return 'http://localhost:5000';
 };
 
 /**
- * Getter property so components using `API_BASE_URL` dynamically evaluate 
- * the URL at call time rather than locking in 'localhost' during SSR.
+ * Getter property so components using `API_BASE_URL` dynamically evaluate
+ * the URL at call time rather than locking in an initial value.
  */
 export const config = {
   get API_BASE_URL(): string {

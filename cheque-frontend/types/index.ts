@@ -1,14 +1,14 @@
-// src/types/index.ts
+// /var/www/ChequeSystem/cheque-frontend/types/index.ts
 
 export type ChequeType = 'INWARD' | 'OUTWARD';
 
-export type ChequeStatus = 
-  | 'PENDING' 
-  | 'DEPOSITED' 
-  | 'REALISED' 
-  | 'BOUNCED' 
-  | 'CANCELLED' 
-  | 'CLEARED' 
+export type ChequeStatus =
+  | 'PENDING'
+  | 'DEPOSITED'
+  | 'REALISED'
+  | 'BOUNCED'
+  | 'CANCELLED'
+  | 'CLEARED'
   | 'RETURNED';
 
 export interface Cheque {
@@ -23,6 +23,8 @@ export interface Cheque {
   status: ChequeStatus;
   imageFrontPath: string | null;
   imageBackPath: string | null;
+  frontImageUrl?: string;
+  backImageUrl?: string;
   ourAccount?: string;
   notes?: string;
 }
