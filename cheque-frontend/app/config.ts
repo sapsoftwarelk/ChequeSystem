@@ -16,11 +16,11 @@ export const getApiBaseUrl = (): string => {
       return `https://${window.location.hostname}/api`;
     }
     const host = window.location.hostname;
-    return `http://${host}:5000`;
+    return `http://${host}:5001/api`; // 👈 Added /api (and updated port to 5001 if your backend runs on 5001)
   }
 
   // 3. Fallback for SSR / Local Development
-  return 'http://localhost:5000';
+  return 'http://localhost:5001/api'; // 👈 Added /api here too
 };
 
 /**

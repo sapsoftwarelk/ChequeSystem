@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { getApiBaseUrl } from '@/app/config';
 import { OUR_COMPANY_ACCOUNTS } from '@/constants/bankAccounts';
 
@@ -32,6 +32,16 @@ export interface ChequeListProps {
   onStatusUpdated?: () => void | Promise<void>;
 }
 
+// Builds a browser-accessible URL from a stored relative path like
+// "/static-assets/imageFront-....jpg". Works whether baseUrl ends in
+// "/api" or not.
+const buildImageUrl = (baseUrl: string, path?: string | null): string | undefined => {
+  if (!path) return undefined;
+  const baseUrlWithoutApi = baseUrl.replace(/\/api\/?$/, '');
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${baseUrlWithoutApi}${cleanPath}`;
+};
+
 export default function ChequeList({
   token,
   refreshKey,
@@ -49,6 +59,13 @@ export default function ChequeList({
   const [editingCheque, setEditingCheque] = useState<ChequeRecord | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  // New image files selected in the Edit modal (replaces the old URL text
+  // field approach, which the backend never actually persisted).
+  const [editImageFront, setEditImageFront] = useState<File | null>(null);
+  const [editImageBack, setEditImageBack] = useState<File | null>(null);
+  const [editFrontPreview, setEditFrontPreview] = useState<string | null>(null);
+  const [editBackPreview, setEditBackPreview] = useState<string | null>(null);
+
   const [viewingImages, setViewingImages] = useState<{
     chequeNo: string;
     partyName: string;
@@ -57,6 +74,17 @@ export default function ChequeList({
   } | null>(null);
 
   const activeCheques = propCheques ?? internalCheques;
+
+  // Derive display-ready image URLs from whichever source is active
+  // (props from the parent's own fetch, OR this component's internal fetch).
+  const displayCheques = useMemo(() => {
+    const baseUrl = getApiBaseUrl();
+    return activeCheques.map((c) => ({
+      ...c,
+      imageFrontUrl: c.imageFrontUrl ?? buildImageUrl(baseUrl, c.imageFrontPath),
+      imageBackUrl: c.imageBackUrl ?? buildImageUrl(baseUrl, c.imageBackPath),
+    }));
+  }, [activeCheques]);
 
   const getHeaders = useCallback((): HeadersInit => {
     const headers: HeadersInit = { 'Content-Type': 'application/json' };
@@ -82,14 +110,10 @@ export default function ChequeList({
         const data = await response.json();
         const rawData = Array.isArray(data) ? data : data.cheques || [];
 
-        // FIXED: Robust path cleaning for images
-        const baseUrlWithoutApi = baseUrl.replace('/api', '');
-        const cleanPath = (path: string) => (path.startsWith('/') ? path : `/${path}`);
-
         const formattedData = rawData.map((c: any) => ({
           ...c,
-          imageFrontUrl: c.imageFrontPath ? `${baseUrlWithoutApi}${cleanPath(c.imageFrontPath)}` : undefined,
-          imageBackUrl: c.imageBackPath ? `${baseUrlWithoutApi}${cleanPath(c.imageBackPath)}` : undefined,
+          imageFrontUrl: buildImageUrl(baseUrl, c.imageFrontPath),
+          imageBackUrl: buildImageUrl(baseUrl, c.imageBackPath),
         }));
 
         setInternalCheques(formattedData);
@@ -108,6 +132,38 @@ export default function ChequeList({
       fetchCheques();
     }
   }, [token, refreshKey, propCheques, fetchCheques]);
+
+  // Reset the "new image" selections whenever a different (or no) record is
+  // opened for editing, so a leftover file from a previous edit never
+  // accidentally attaches to the next one.
+  useEffect(() => {
+    setEditImageFront(null);
+    setEditImageBack(null);
+    setEditFrontPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setEditBackPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+  }, [editingCheque?.id]);
+
+  const handleEditImageChange = (file: File | null, side: 'front' | 'back') => {
+    if (side === 'front') {
+      setEditFrontPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return file ? URL.createObjectURL(file) : null;
+      });
+      setEditImageFront(file);
+    } else {
+      setEditBackPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return file ? URL.createObjectURL(file) : null;
+      });
+      setEditImageBack(file);
+    }
+  };
 
   // FIXED: Removed Bank Name fallback to ensure accurate representation of assigned accounts
   const getAccountName = (cheque: ChequeRecord): string => {
@@ -181,19 +237,44 @@ export default function ChequeList({
     setUpdatingId(editingCheque.id);
     setActionError(null);
 
-    const payload = {
-      ...editingCheque,
-      // We pass the edited values directly here
-      ourCompanyAccount: editingCheque.ourCompanyAccount,
-      ourAccount: editingCheque.ourAccount,
-    };
+    // Switched from a JSON body to FormData so image files can travel in
+    // the same request, the same way the initial cheque upload works.
+    // IMPORTANT: do NOT set a 'Content-Type' header manually here — the
+    // browser needs to set the multipart boundary itself.
+    const uploadData = new FormData();
+    uploadData.append('chequeType', editingCheque.chequeType || '');
+    uploadData.append('chequeNo', editingCheque.chequeNo || '');
+    uploadData.append('bankName', editingCheque.bankName || '');
+    uploadData.append('branchName', editingCheque.branchName || '');
+    uploadData.append('amount', String(editingCheque.amount ?? ''));
+    uploadData.append('partyName', editingCheque.partyName || '');
+    uploadData.append(
+      'chequeDate',
+      editingCheque.chequeDate ? editingCheque.chequeDate.split('T')[0] : ''
+    );
+    uploadData.append('status', editingCheque.status || 'PENDING');
+    uploadData.append('notes', editingCheque.notes || '');
+    uploadData.append(
+      'ourCompanyAccount',
+      editingCheque.ourCompanyAccount || editingCheque.ourAccount || ''
+    );
+
+    // Only attach a file if the admin actually picked a replacement —
+    // otherwise the backend keeps the existing stored image untouched.
+    if (editImageFront) uploadData.append('imageFront', editImageFront);
+    if (editImageBack) uploadData.append('imageBack', editImageBack);
 
     try {
       const baseUrl = getApiBaseUrl();
+      const headers: HeadersInit = {};
+      if (token) {
+        headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+      }
+
       const response = await fetch(`${baseUrl}/cheques/${editingCheque.id}`, {
         method: 'PUT',
-        headers: getHeaders(),
-        body: JSON.stringify(payload),
+        headers,
+        body: uploadData,
       });
 
       if (response.ok) {
@@ -211,7 +292,7 @@ export default function ChequeList({
     }
   };
 
-  const filteredCheques = activeCheques.filter((cheque) => {
+  const filteredCheques = displayCheques.filter((cheque) => {
     const acc = getAccountName(cheque);
     const matchesAccount = selectedAccount ? acc === selectedAccount : true;
     const matchesSearch =
@@ -226,9 +307,9 @@ export default function ChequeList({
   const getStatusBadge = (status?: string) => {
     const s = (status || 'PENDING').toUpperCase();
     switch (s) {
-      case 'CLEARED':
+      case 'REALISED':
       case 'DEPOSITED':
-        return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">CLEARED</span>;
+        return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">{s}</span>;
       case 'BOUNCED':
       case 'CANCELLED':
       case 'RETURNED':
@@ -382,7 +463,12 @@ export default function ChequeList({
                           <button
                             type="button"
                             disabled={updatingId === cheque.id}
-                            onClick={() => handleStatusChange(cheque.id, 'CLEARED')}
+                            onClick={() =>
+                              handleStatusChange(
+                                cheque.id,
+                                cheque.chequeType === 'INWARD' ? 'DEPOSITED' : 'REALISED'
+                              )
+                            }
                             className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-semibold transition disabled:opacity-50 cursor-pointer"
                           >
                             Clear
@@ -522,6 +608,17 @@ export default function ChequeList({
 
                 <div>
                   <label className="block font-semibold text-gray-700 mb-1">Status</label>
+                  {/*
+                    NOTE: these values must match the backend ChequeStatus
+                    Prisma enum exactly (PENDING / DEPOSITED / REALISED /
+                    BOUNCED / CANCELLED). The previous version sent the
+                    string "CLEARED", which is not a real enum member —
+                    Prisma rejected the whole update() call whenever an
+                    admin picked it, silently failing to save ANY of the
+                    edited fields in that submission, not just the status.
+                    Double-check these against your schema.prisma if your
+                    enum names differ.
+                  */}
                   <select
                     value={editingCheque.status || 'PENDING'}
                     onChange={(e) =>
@@ -530,7 +627,8 @@ export default function ChequeList({
                     className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-500 bg-white"
                   >
                     <option value="PENDING">PENDING</option>
-                    <option value="CLEARED">CLEARED / DEPOSITED</option>
+                    <option value="DEPOSITED">DEPOSITED (Inward - Cleared)</option>
+                    <option value="REALISED">REALISED (Outward - Cleared)</option>
                     <option value="BOUNCED">BOUNCED / RETURNED</option>
                     <option value="CANCELLED">CANCELLED</option>
                   </select>
@@ -539,8 +637,17 @@ export default function ChequeList({
 
               <div>
                 <label className="block font-semibold text-gray-700 mb-1">Company Account *</label>
+                {/*
+                  IMPORTANT: the backend Prisma column is `ourAccount`.
+                  `ourCompanyAccount` only ever exists client-side (set
+                  when this dropdown itself is changed). Records loaded
+                  from GET /cheques never populate `ourCompanyAccount`,
+                  so checking it alone left this select blank on every
+                  edit even though the account WAS saved — forcing you to
+                  reselect it each time just to satisfy `required`.
+                */}
                 <select
-                  value={editingCheque.ourCompanyAccount || ''}
+                  value={editingCheque.ourCompanyAccount || editingCheque.ourAccount || editingCheque.accountNumber || ''}
                   onChange={(e) =>
                     setEditingCheque((prev) =>
                       prev
@@ -649,29 +756,51 @@ export default function ChequeList({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/*
+                REPLACED: raw "Front/Back Image URL" text inputs — the
+                backend never persisted those values anyway. Now these are
+                real file uploads, matching the initial cheque creation
+                form. Leaving a slot empty keeps the currently stored image.
+              */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 border-t pt-3">
                 <div>
-                  <label className="block font-semibold text-gray-700 mb-1">Front Image URL</label>
+                  <label className="block font-semibold text-gray-700 mb-1">Front Image</label>
+                  {(editFrontPreview || editingCheque.imageFrontUrl) ? (
+                    <img
+                      src={editFrontPreview || editingCheque.imageFrontUrl}
+                      alt="Front"
+                      className="w-32 h-16 object-cover rounded border mb-1"
+                    />
+                  ) : (
+                    <p className="text-[10px] text-gray-400 mb-1">No current image</p>
+                  )}
                   <input
-                    type="text"
-                    value={editingCheque.imageFrontUrl || ''}
-                    onChange={(e) =>
-                      setEditingCheque((prev) => (prev ? { ...prev, imageFrontUrl: e.target.value } : null))
-                    }
-                    className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-500"
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleEditImageChange(e.target.files?.[0] || null, 'front')}
+                    className="w-full text-[11px] text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
                   />
+                  <p className="text-[10px] text-gray-400 mt-1">Leave empty to keep the current image.</p>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-gray-700 mb-1">Back Image URL</label>
+                  <label className="block font-semibold text-gray-700 mb-1">Back Image</label>
+                  {(editBackPreview || editingCheque.imageBackUrl) ? (
+                    <img
+                      src={editBackPreview || editingCheque.imageBackUrl}
+                      alt="Back"
+                      className="w-32 h-16 object-cover rounded border mb-1"
+                    />
+                  ) : (
+                    <p className="text-[10px] text-gray-400 mb-1">No current image</p>
+                  )}
                   <input
-                    type="text"
-                    value={editingCheque.imageBackUrl || ''}
-                    onChange={(e) =>
-                      setEditingCheque((prev) => (prev ? { ...prev, imageBackUrl: e.target.value } : null))
-                    }
-                    className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-500"
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleEditImageChange(e.target.files?.[0] || null, 'back')}
+                    className="w-full text-[11px] text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
                   />
+                  <p className="text-[10px] text-gray-400 mt-1">Leave empty to keep the current image.</p>
                 </div>
               </div>
 

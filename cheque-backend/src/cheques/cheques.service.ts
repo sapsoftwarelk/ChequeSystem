@@ -54,7 +54,7 @@ export class ChequesService {
         imageFrontPath: data.imageFrontPath || null,
         imageBackPath: data.imageBackPath || null,
         notes: targetNotes,
-        ourAccount: data.ourAccount || null, // 👈 FIXED: Direct assignment to ensure payload fields write safely to PostgreSQL
+        ourAccount: data.ourAccount || null,
       },
     });
   }
@@ -96,11 +96,24 @@ export class ChequesService {
   }
 
   // Update any text fields of a cheque
+  //
+  // This loads the current record first so that:
+  //   1. realisingDate is preserved instead of being silently wiped to null
+  //      on every unrelated edit (previously reset every time unless the
+  //      client explicitly sent one, which the edit form never did).
+  //   2. imageFrontPath / imageBackPath are only overwritten when the
+  //      caller actually provides a new value (i.e. a new file was
+  //      uploaded); otherwise the existing stored image is preserved.
+  //   3. ourAccount / notes fall back to the existing value rather than
+  //      being nulled out if omitted.
   async updateChequeDetails(id: number, data: any): Promise<any> {
-    const targetStatus = data.status || ChequeStatus.PENDING;
+    const current = await this.prisma.cheque.findUnique({ where: { id } });
+    if (!current) throw new Error('Cheque record not found');
+
+    const targetStatus = data.status || current.status || ChequeStatus.PENDING;
     let finalStatus = targetStatus;
-    let finalRealisingDate = data.realisingDate || null;
-    let finalNotes = data.notes || null;
+    let finalRealisingDate = data.realisingDate ? new Date(data.realisingDate) : current.realisingDate;
+    let finalNotes = data.notes !== undefined ? data.notes : current.notes;
 
     if (this.shouldBeInstantlyRealised(data.chequeType, targetStatus, data.chequeDate)) {
       finalStatus = ChequeStatus.REALISED;
@@ -121,7 +134,9 @@ export class ChequesService {
         status: finalStatus,
         realisingDate: finalRealisingDate,
         notes: finalNotes,
-        ourAccount: data.ourAccount !== undefined ? data.ourAccount : undefined, // 👈 CRITICAL FIX: Maps the incoming update structure safely to prevent resetting back to null during generic modifications
+        ourAccount: data.ourAccount !== undefined ? data.ourAccount : current.ourAccount,
+        imageFrontPath: data.imageFrontPath !== undefined ? data.imageFrontPath : current.imageFrontPath,
+        imageBackPath: data.imageBackPath !== undefined ? data.imageBackPath : current.imageBackPath,
       },
     });
   }
@@ -182,5 +197,53 @@ export class ChequesService {
         chequeDate: 'asc',
       },
     });
+  }
+
+  // COMPREHENSIVE REPORT ENGINE: Handles multi-parameter filtering for frontend Audit Report
+  async getChequeReport(query: {
+    startDate?: string;
+    endDate?: string;
+    ourAccount?: string;
+    bankName?: string;
+    chequeType?: 'INWARD' | 'OUTWARD' | 'ALL' | string;
+  }) {
+    const { startDate, endDate, ourAccount, bankName, chequeType } = query;
+    const where: any = {};
+
+    // 1. Date range filter
+    if (startDate || endDate) {
+      where.chequeDate = {};
+      if (startDate) {
+        where.chequeDate.gte = new Date(startDate);
+      }
+      if (endDate) {
+        where.chequeDate.lte = new Date(endDate + 'T23:59:59.999Z');
+      }
+    }
+
+    // 2. Company account filter
+    if (ourAccount) {
+      where.ourAccount = ourAccount;
+    }
+
+    // 3. Cheque Type filter (INWARD / OUTWARD)
+    if (chequeType && chequeType !== 'ALL') {
+      where.chequeType = chequeType;
+    }
+
+    // 4. Bank or Party search query (case-insensitive partial match)
+    if (bankName) {
+      where.OR = [
+        { bankName: { contains: bankName, mode: 'insensitive' } },
+        { partyName: { contains: bankName, mode: 'insensitive' } },
+      ];
+    }
+
+    const records = await this.prisma.cheque.findMany({
+      where,
+      orderBy: { chequeDate: 'desc' },
+    });
+
+    return { records };
   }
 }
