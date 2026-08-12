@@ -7,6 +7,12 @@ interface DashboardStatsProps {
   cheques: Cheque[];
 }
 
+interface PriorityChequeItem {
+  chequeNo: string;
+  amount: number;
+  chequeDate: string;
+}
+
 // Pre-instantiated formatter for high-performance string formatting
 const lkrFormatter = new Intl.NumberFormat('en-LK', {
   style: 'currency',
@@ -16,7 +22,7 @@ const lkrFormatter = new Intl.NumberFormat('en-LK', {
 });
 
 export default function DashboardStats({ cheques }: DashboardStatsProps) {
-  // Compute all metrics in a single O(N) loop
+  // Compute all metrics in a single O(N) loop including segregated Due Soon & Overdue tracking
   const metrics = useMemo(() => {
     const parseAmount = (item: Cheque): number => {
       if (typeof item.amount === 'number') return item.amount;
@@ -29,6 +35,11 @@ export default function DashboardStats({ cheques }: DashboardStatsProps) {
     const isCleared = (status?: string) => {
       const upper = status?.toUpperCase();
       return upper === 'REALISED' || upper === 'CLEARED';
+    };
+
+    const isPendingOrDeposited = (status?: string) => {
+      const upper = status?.toUpperCase();
+      return upper === 'PENDING' || upper === 'DEPOSITED';
     };
 
     let inwardTotalCount = 0;
@@ -47,6 +58,26 @@ export default function DashboardStats({ cheques }: DashboardStatsProps) {
 
     let bouncedCount = 0;
 
+    // Due Soon & Overdue segregation collections
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const threeDaysLater = new Date();
+    threeDaysLater.setHours(0, 0, 0, 0);
+    threeDaysLater.setDate(today.getDate() + 3);
+
+    let inwardOverdueAmount = 0;
+    const inwardOverdueList: PriorityChequeItem[] = [];
+
+    let inwardDueSoonAmount = 0;
+    const inwardDueSoonList: PriorityChequeItem[] = [];
+
+    let outwardOverdueAmount = 0;
+    const outwardOverdueList: PriorityChequeItem[] = [];
+
+    let outwardDueSoonAmount = 0;
+    const outwardDueSoonList: PriorityChequeItem[] = [];
+
     for (const c of cheques) {
       const amt = parseAmount(c);
       const isInward = isMatch(c.chequeType, 'INWARD');
@@ -56,11 +87,43 @@ export default function DashboardStats({ cheques }: DashboardStatsProps) {
         bouncedCount++;
       }
 
+      // Check due dates for pending/deposited records and segregate by Inward/Outward
+      if (c.chequeDate && isPendingOrDeposited(c.status)) {
+        const cDate = new Date(c.chequeDate);
+        cDate.setHours(0, 0, 0, 0);
+
+        if (!isNaN(cDate.getTime())) {
+          const chequeItem: PriorityChequeItem = {
+            chequeNo: c.chequeNo || 'N/A',
+            amount: amt,
+            chequeDate: c.chequeDate,
+          };
+
+          if (isInward) {
+            if (cDate < today) {
+              inwardOverdueAmount += amt;
+              inwardOverdueList.push(chequeItem);
+            } else if (cDate >= today && cDate <= threeDaysLater) {
+              inwardDueSoonAmount += amt;
+              inwardDueSoonList.push(chequeItem);
+            }
+          } else if (isOutward) {
+            if (cDate < today) {
+              outwardOverdueAmount += amt;
+              outwardOverdueList.push(chequeItem);
+            } else if (cDate >= today && cDate <= threeDaysLater) {
+              outwardDueSoonAmount += amt;
+              outwardDueSoonList.push(chequeItem);
+            }
+          }
+        }
+      }
+
       if (isInward) {
         inwardTotalCount++;
         inwardTotalAmount += amt;
 
-        if (isMatch(c.status, 'PENDING') || isMatch(c.status, 'DEPOSITED')) {
+        if (isPendingOrDeposited(c.status)) {
           inwardPendingCount++;
           inwardPendingAmount += amt;
         } else if (isCleared(c.status)) {
@@ -91,6 +154,12 @@ export default function DashboardStats({ cheques }: DashboardStatsProps) {
         pendingAmount: round2(inwardPendingAmount),
         clearedCount: inwardClearedCount,
         clearedAmount: round2(inwardClearedAmount),
+        overdueCount: inwardOverdueList.length,
+        overdueAmount: round2(inwardOverdueAmount),
+        overdueList: inwardOverdueList,
+        dueSoonCount: inwardDueSoonList.length,
+        dueSoonAmount: round2(inwardDueSoonAmount),
+        dueSoonList: inwardDueSoonList,
       },
       outward: {
         totalCount: outwardTotalCount,
@@ -99,6 +168,12 @@ export default function DashboardStats({ cheques }: DashboardStatsProps) {
         pendingAmount: round2(outwardPendingAmount),
         clearedCount: outwardClearedCount,
         clearedAmount: round2(outwardClearedAmount),
+        overdueCount: outwardOverdueList.length,
+        overdueAmount: round2(outwardOverdueAmount),
+        overdueList: outwardOverdueList,
+        dueSoonCount: outwardDueSoonList.length,
+        dueSoonAmount: round2(outwardDueSoonAmount),
+        dueSoonList: outwardDueSoonList,
       },
       bouncedCount,
     };
@@ -108,24 +183,26 @@ export default function DashboardStats({ cheques }: DashboardStatsProps) {
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      {/* BOUNCED SUMMARY ALERT BANNER */}
+      {/* BOUNCED SUMMARY ALERT BANNER (If any) */}
       {metrics.bouncedCount > 0 && (
-        <div className="relative overflow-hidden bg-gradient-to-r from-rose-500/10 via-rose-500/5 to-transparent border border-rose-200 p-4 sm:p-5 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-rose-950 shadow-sm backdrop-blur-sm">
-          <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-rose-500" />
-          <div className="flex items-center space-x-3 min-w-0 pl-1">
-            <div className="p-2 bg-rose-100 rounded-xl text-rose-600 flex-shrink-0 shadow-inner">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
+        <div className="relative overflow-hidden bg-gradient-to-br from-red-50/90 via-white to-red-100/40 border border-red-200/80 p-4 rounded-2xl flex flex-col justify-between shadow-sm">
+          <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-red-600" />
+          <div className="flex items-center justify-between pl-1">
+            <div className="flex items-center space-x-2.5">
+              <span className="w-7 h-7 rounded-xl flex items-center justify-center text-xs bg-red-100 text-red-700 shadow-inner">
+                ⚠️
+              </span>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-red-900">
+                Bounced Exceptions
+              </span>
             </div>
-            <div>
-              <h4 className="text-xs sm:text-sm font-bold text-rose-900 tracking-tight">Attention Required: Bounced Cheques Flagged</h4>
-              <p className="text-[11px] text-rose-700/80">Immediate review needed for recent transaction exceptions.</p>
-            </div>
+            <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-red-200 text-red-950">
+              {metrics.bouncedCount} Flagged
+            </span>
           </div>
-          <span className="text-xs font-bold bg-rose-600 text-white px-3.5 py-1.5 rounded-xl shadow-sm whitespace-nowrap">
-            {metrics.bouncedCount} Record{metrics.bouncedCount > 1 ? 's' : ''} Flagged
-          </span>
+          <div className="mt-3 pl-1">
+            <p className="text-xs text-red-700 font-medium">Immediate review needed for recent transaction exceptions.</p>
+          </div>
         </div>
       )}
 
@@ -163,6 +240,87 @@ export default function DashboardStats({ cheques }: DashboardStatsProps) {
             icon="✅"
           />
         </div>
+
+        {/* INWARD PRIORITY ALERTS (Overdue & Due Soon with Cheque Numbers) */}
+        {(metrics.inward.overdueCount > 0 || metrics.inward.dueSoonCount > 0) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 pt-1">
+            {metrics.inward.overdueCount > 0 && (
+              <div className="relative overflow-hidden bg-gradient-to-br from-rose-50/90 via-white to-rose-100/40 border border-rose-200/80 p-4 rounded-2xl flex flex-col justify-between shadow-sm">
+                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-rose-500" />
+                <div>
+                  <div className="flex items-center justify-between pl-1">
+                    <div className="flex items-center space-x-2.5">
+                      <span className="w-7 h-7 rounded-xl flex items-center justify-center text-xs bg-rose-100 text-rose-700 shadow-inner">
+                        🚨
+                      </span>
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-rose-900">
+                        Inward Overdue
+                      </span>
+                    </div>
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-rose-200 text-rose-950">
+                      {metrics.inward.overdueCount} Pending
+                    </span>
+                  </div>
+                  <div className="mt-3 pl-1">
+                    <p className="text-lg sm:text-xl font-black text-rose-950 font-mono">
+                      {formatLKR(metrics.inward.overdueAmount)}
+                    </p>
+                    <p className="text-[11px] text-rose-700 mt-0.5">Past target deposit date</p>
+                  </div>
+                </div>
+
+                <div className="mt-3 pt-2.5 border-t border-rose-200/60 pl-1">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-rose-800 mb-1">Cheque No(s):</span>
+                  <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                    {metrics.inward.overdueList.map((item, idx) => (
+                      <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded-md bg-rose-100 text-rose-900 font-mono text-xs font-bold shadow-2xs">
+                        #{item.chequeNo}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {metrics.inward.dueSoonCount > 0 && (
+              <div className="relative overflow-hidden bg-gradient-to-br from-amber-50/90 via-white to-amber-100/40 border border-amber-200/80 p-4 rounded-2xl flex flex-col justify-between shadow-sm">
+                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-amber-500" />
+                <div>
+                  <div className="flex items-center justify-between pl-1">
+                    <div className="flex items-center space-x-2.5">
+                      <span className="w-7 h-7 rounded-xl flex items-center justify-center text-xs bg-amber-100 text-amber-700 shadow-inner">
+                        ⚡
+                      </span>
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900">
+                        Inward Due Soon (3 Days)
+                      </span>
+                    </div>
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-amber-200 text-amber-950">
+                      {metrics.inward.dueSoonCount} Action Required
+                    </span>
+                  </div>
+                  <div className="mt-3 pl-1">
+                    <p className="text-lg sm:text-xl font-black text-amber-950 font-mono">
+                      {formatLKR(metrics.inward.dueSoonAmount)}
+                    </p>
+                    <p className="text-[11px] text-amber-700 mt-0.5">Prepare for bank deposit</p>
+                  </div>
+                </div>
+
+                <div className="mt-3 pt-2.5 border-t border-amber-200/60 pl-1">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-amber-800 mb-1">Cheque No(s):</span>
+                  <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                    {metrics.inward.dueSoonList.map((item, idx) => (
+                      <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-mono text-xs font-bold shadow-2xs">
+                        #{item.chequeNo}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       {/* OUTWARD CHEQUES SECTION */}
@@ -199,6 +357,87 @@ export default function DashboardStats({ cheques }: DashboardStatsProps) {
             icon="🏦"
           />
         </div>
+
+        {/* OUTWARD PRIORITY ALERTS (Overdue & Due Soon with Cheque Numbers) */}
+        {(metrics.outward.overdueCount > 0 || metrics.outward.dueSoonCount > 0) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 pt-1">
+            {metrics.outward.overdueCount > 0 && (
+              <div className="relative overflow-hidden bg-gradient-to-br from-rose-50/90 via-white to-rose-100/40 border border-rose-200/80 p-4 rounded-2xl flex flex-col justify-between shadow-sm">
+                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-rose-500" />
+                <div>
+                  <div className="flex items-center justify-between pl-1">
+                    <div className="flex items-center space-x-2.5">
+                      <span className="w-7 h-7 rounded-xl flex items-center justify-center text-xs bg-rose-100 text-rose-700 shadow-inner">
+                        🚨
+                      </span>
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-rose-900">
+                        Outward Overdue
+                      </span>
+                    </div>
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-rose-200 text-rose-950">
+                      {metrics.outward.overdueCount} Pending
+                    </span>
+                  </div>
+                  <div className="mt-3 pl-1">
+                    <p className="text-lg sm:text-xl font-black text-rose-950 font-mono">
+                      {formatLKR(metrics.outward.overdueAmount)}
+                    </p>
+                    <p className="text-[11px] text-rose-700 mt-0.5">Past target withdrawal date</p>
+                  </div>
+                </div>
+
+                <div className="mt-3 pt-2.5 border-t border-rose-200/60 pl-1">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-rose-800 mb-1">Cheque No(s):</span>
+                  <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                    {metrics.outward.overdueList.map((item, idx) => (
+                      <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded-md bg-rose-100 text-rose-900 font-mono text-xs font-bold shadow-2xs">
+                        #{item.chequeNo}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {metrics.outward.dueSoonCount > 0 && (
+              <div className="relative overflow-hidden bg-gradient-to-br from-amber-50/90 via-white to-amber-100/40 border border-amber-200/80 p-4 rounded-2xl flex flex-col justify-between shadow-sm">
+                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-amber-500" />
+                <div>
+                  <div className="flex items-center justify-between pl-1">
+                    <div className="flex items-center space-x-2.5">
+                      <span className="w-7 h-7 rounded-xl flex items-center justify-center text-xs bg-amber-100 text-amber-700 shadow-inner">
+                        ⚡
+                      </span>
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900">
+                        Outward Due Soon (3 Days)
+                      </span>
+                    </div>
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-amber-200 text-amber-950">
+                      {metrics.outward.dueSoonCount} Action Required
+                    </span>
+                  </div>
+                  <div className="mt-3 pl-1">
+                    <p className="text-lg sm:text-xl font-black text-amber-950 font-mono">
+                      {formatLKR(metrics.outward.dueSoonAmount)}
+                    </p>
+                    <p className="text-[11px] text-amber-700 mt-0.5">Ensure account funds for clearance</p>
+                  </div>
+                </div>
+
+                <div className="mt-3 pt-2.5 border-t border-amber-200/60 pl-1">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-amber-800 mb-1">Cheque No(s):</span>
+                  <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                    {metrics.outward.dueSoonList.map((item, idx) => (
+                      <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-mono text-xs font-bold shadow-2xs">
+                        #{item.chequeNo}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </section>
     </div>
   );
