@@ -237,10 +237,6 @@ export default function ChequeList({
     setUpdatingId(editingCheque.id);
     setActionError(null);
 
-    // Switched from a JSON body to FormData so image files can travel in
-    // the same request, the same way the initial cheque upload works.
-    // IMPORTANT: do NOT set a 'Content-Type' header manually here — the
-    // browser needs to set the multipart boundary itself.
     const uploadData = new FormData();
     uploadData.append('chequeType', editingCheque.chequeType || '');
     uploadData.append('chequeNo', editingCheque.chequeNo || '');
@@ -259,8 +255,6 @@ export default function ChequeList({
       editingCheque.ourCompanyAccount || editingCheque.ourAccount || ''
     );
 
-    // Only attach a file if the admin actually picked a replacement —
-    // otherwise the backend keeps the existing stored image untouched.
     if (editImageFront) uploadData.append('imageFront', editImageFront);
     if (editImageBack) uploadData.append('imageBack', editImageBack);
 
@@ -321,15 +315,15 @@ export default function ChequeList({
   };
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 max-w-7xl mx-auto space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-3 gap-2">
+    <div className="bg-white p-3 sm:p-6 rounded-lg shadow-md border border-gray-200 max-w-7xl mx-auto space-y-4 overflow-x-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-3 gap-3">
         <div>
-          <h2 className="text-xl font-bold text-gray-800">Cheque Records Checklist</h2>
+          <h2 className="text-lg sm:text-xl font-bold text-gray-800">Cheque Records Checklist</h2>
           <p className="text-xs text-gray-500">View, search, edit, inspect cheque images, and manage logged cheques.</p>
         </div>
         <button
           onClick={fetchCheques}
-          className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded transition flex items-center w-fit cursor-pointer"
+          className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 sm:py-1.5 rounded transition flex items-center justify-center w-full sm:w-fit cursor-pointer"
         >
           🔄 Refresh List
         </button>
@@ -341,7 +335,7 @@ export default function ChequeList({
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50 p-3 rounded-md border border-gray-100">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 bg-gray-50 p-3 rounded-md border border-gray-100">
         <div>
           <label htmlFor="accountFilter" className="block text-xs font-semibold text-gray-600 mb-1">
             Filter By Company Account
@@ -350,7 +344,7 @@ export default function ChequeList({
             id="accountFilter"
             value={selectedAccount}
             onChange={(e) => setSelectedAccount(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full p-2.5 sm:p-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
             <option value="">-- All Company Accounts --</option>
             {OUR_COMPANY_ACCOUNTS.map((account) => (
@@ -371,7 +365,7 @@ export default function ChequeList({
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Type cheque #, party name, or account..."
-            className="w-full p-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full p-2.5 sm:p-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
         </div>
       </div>
@@ -385,57 +379,181 @@ export default function ChequeList({
           No cheque records found for the selected criteria.
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 uppercase font-semibold">
-                <th className="p-2.5">Type</th>
-                <th className="p-2.5">Cheque No</th>
-                <th className="p-2.5">Company Account</th>
-                <th className="p-2.5">Bank / Branch</th>
-                <th className="p-2.5">Payer / Payee</th>
-                <th className="p-2.5">Amount (LKR)</th>
-                <th className="p-2.5">Date</th>
-                <th className="p-2.5 text-center">Images</th>
-                <th className="p-2.5 text-center">Status</th>
-                {isAdmin && <th className="p-2.5 text-center">Actions</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredCheques.map((cheque) => {
-                const accountName = getAccountName(cheque);
-                const hasImages = Boolean(cheque.imageFrontUrl || cheque.imageBackUrl);
+        <>
+          {/* DESKTOP TABLE VIEW */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 uppercase font-semibold">
+                  <th className="p-2.5">Type</th>
+                  <th className="p-2.5">Cheque No</th>
+                  <th className="p-2.5">Company Account</th>
+                  <th className="p-2.5">Bank / Branch</th>
+                  <th className="p-2.5">Payer / Payee</th>
+                  <th className="p-2.5">Amount (LKR)</th>
+                  <th className="p-2.5">Date</th>
+                  <th className="p-2.5 text-center">Images</th>
+                  <th className="p-2.5 text-center">Status</th>
+                  {isAdmin && <th className="p-2.5 text-center">Actions</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredCheques.map((cheque) => {
+                  const accountName = getAccountName(cheque);
+                  const hasImages = Boolean(cheque.imageFrontUrl || cheque.imageBackUrl);
 
-                return (
-                  <tr key={cheque.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="p-2.5 font-medium">
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          cheque.chequeType === 'INWARD'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-amber-100 text-amber-800'
-                        }`}
-                      >
-                        {cheque.chequeType}
+                  return (
+                    <tr key={cheque.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="p-2.5 font-medium">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            cheque.chequeType === 'INWARD'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {cheque.chequeType}
+                        </span>
+                      </td>
+                      <td className="p-2.5 font-mono font-semibold text-gray-800">{cheque.chequeNo}</td>
+                      <td className="p-2.5 text-gray-700 font-medium max-w-xs truncate" title={accountName}>
+                        {accountName}
+                      </td>
+                      <td className="p-2.5 text-gray-700">
+                        <div>{cheque.bankName}</div>
+                        {cheque.branchName && <div className="text-[10px] text-gray-400">{cheque.branchName}</div>}
+                      </td>
+                      <td className="p-2.5 font-medium text-gray-800">{cheque.partyName}</td>
+                      <td className="p-2.5 font-mono font-bold text-gray-900">
+                        {Number(cheque.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="p-2.5 text-gray-500 whitespace-nowrap">
+                        {cheque.chequeDate ? cheque.chequeDate.split('T')[0] : ''}
+                      </td>
+
+                      <td className="p-2.5 text-center whitespace-nowrap">
+                        {hasImages ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setViewingImages({
+                                chequeNo: cheque.chequeNo,
+                                partyName: cheque.partyName,
+                                frontUrl: cheque.imageFrontUrl,
+                                backUrl: cheque.imageBackUrl,
+                              })
+                            }
+                            className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded text-[10px] font-semibold transition cursor-pointer flex items-center justify-center space-x-1 mx-auto"
+                          >
+                            <span>📷 View</span>
+                          </button>
+                        ) : (
+                          <span className="text-gray-400 text-[10px]">No images</span>
+                        )}
+                      </td>
+
+                      <td className="p-2.5 text-center">{getStatusBadge(cheque.status)}</td>
+                      {isAdmin && (
+                        <td className="p-2.5 text-center whitespace-nowrap">
+                          <div className="inline-flex space-x-1">
+                            <button
+                              type="button"
+                              disabled={updatingId === cheque.id}
+                              onClick={() =>
+                                handleStatusChange(
+                                  cheque.id,
+                                  cheque.chequeType === 'INWARD' ? 'DEPOSITED' : 'REALISED'
+                                )
+                              }
+                              className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-semibold transition disabled:opacity-50 cursor-pointer"
+                            >
+                              Clear
+                            </button>
+                            <button
+                              type="button"
+                              disabled={updatingId === cheque.id}
+                              onClick={() => handleStatusChange(cheque.id, 'BOUNCED')}
+                              className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-[10px] font-semibold transition disabled:opacity-50 cursor-pointer"
+                            >
+                              Bounce
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingCheque({ ...cheque })}
+                              className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-[10px] font-semibold transition cursor-pointer"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              disabled={deletingId === cheque.id}
+                              onClick={() => handleDelete(cheque.id)}
+                              className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-[10px] font-semibold transition disabled:opacity-50 cursor-pointer"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* MOBILE CARD VIEW */}
+          <div className="block md:hidden space-y-3">
+            {filteredCheques.map((cheque) => {
+              const accountName = getAccountName(cheque);
+              const hasImages = Boolean(cheque.imageFrontUrl || cheque.imageBackUrl);
+
+              return (
+                <div key={cheque.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        cheque.chequeType === 'INWARD'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}
+                    >
+                      {cheque.chequeType}
+                    </span>
+                    <div>{getStatusBadge(cheque.status)}</div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-gray-400 block text-[10px]">Cheque No</span>
+                      <span className="font-mono font-semibold text-gray-800">{cheque.chequeNo}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 block text-[10px]">Date</span>
+                      <span className="text-gray-600">{cheque.chequeDate ? cheque.chequeDate.split('T')[0] : ''}</span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-gray-400 block text-[10px]">Company Account</span>
+                      <span className="text-gray-700 font-medium truncate block">{accountName}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 block text-[10px]">Bank / Branch</span>
+                      <span className="text-gray-700 font-medium">{cheque.bankName} {cheque.branchName ? `(${cheque.branchName})` : ''}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 block text-[10px]">Payer / Payee</span>
+                      <span className="text-gray-800 font-medium">{cheque.partyName}</span>
+                    </div>
+                    <div className="col-span-2 bg-gray-50 p-2 rounded flex justify-between items-center">
+                      <span className="text-gray-500 font-semibold text-xs">Amount (LKR):</span>
+                      <span className="font-mono font-bold text-gray-900 text-sm">
+                        {Number(cheque.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </span>
-                    </td>
-                    <td className="p-2.5 font-mono font-semibold text-gray-800">{cheque.chequeNo}</td>
-                    <td className="p-2.5 text-gray-700 font-medium max-w-xs truncate" title={accountName}>
-                      {accountName}
-                    </td>
-                    <td className="p-2.5 text-gray-700">
-                      <div>{cheque.bankName}</div>
-                      {cheque.branchName && <div className="text-[10px] text-gray-400">{cheque.branchName}</div>}
-                    </td>
-                    <td className="p-2.5 font-medium text-gray-800">{cheque.partyName}</td>
-                    <td className="p-2.5 font-mono font-bold text-gray-900">
-                      {Number(cheque.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="p-2.5 text-gray-500 whitespace-nowrap">
-                      {cheque.chequeDate ? cheque.chequeDate.split('T')[0] : ''}
-                    </td>
+                    </div>
+                  </div>
 
-                    <td className="p-2.5 text-center whitespace-nowrap">
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <div>
                       {hasImages ? (
                         <button
                           type="button"
@@ -447,73 +565,70 @@ export default function ChequeList({
                               backUrl: cheque.imageBackUrl,
                             })
                           }
-                          className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded text-[10px] font-semibold transition cursor-pointer flex items-center justify-center space-x-1 mx-auto"
+                          className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded text-xs font-semibold transition flex items-center space-x-1"
                         >
-                          <span>📷 View</span>
+                          <span>📷 View Images</span>
                         </button>
                       ) : (
-                        <span className="text-gray-400 text-[10px]">No images</span>
+                        <span className="text-gray-400 text-xs">No images</span>
                       )}
-                    </td>
+                    </div>
+                  </div>
 
-                    <td className="p-2.5 text-center">{getStatusBadge(cheque.status)}</td>
-                    {isAdmin && (
-                      <td className="p-2.5 text-center whitespace-nowrap">
-                        <div className="inline-flex space-x-1">
-                          <button
-                            type="button"
-                            disabled={updatingId === cheque.id}
-                            onClick={() =>
-                              handleStatusChange(
-                                cheque.id,
-                                cheque.chequeType === 'INWARD' ? 'DEPOSITED' : 'REALISED'
-                              )
-                            }
-                            className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-semibold transition disabled:opacity-50 cursor-pointer"
-                          >
-                            Clear
-                          </button>
-                          <button
-                            type="button"
-                            disabled={updatingId === cheque.id}
-                            onClick={() => handleStatusChange(cheque.id, 'BOUNCED')}
-                            className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-[10px] font-semibold transition disabled:opacity-50 cursor-pointer"
-                          >
-                            Bounce
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setEditingCheque({ ...cheque })}
-                            className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-[10px] font-semibold transition cursor-pointer"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            disabled={deletingId === cheque.id}
-                            onClick={() => handleDelete(cheque.id)}
-                            className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-[10px] font-semibold transition disabled:opacity-50 cursor-pointer"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                  {isAdmin && (
+                    <div className="grid grid-cols-2 gap-1.5 pt-2 border-t">
+                      <button
+                        type="button"
+                        disabled={updatingId === cheque.id}
+                        onClick={() =>
+                          handleStatusChange(
+                            cheque.id,
+                            cheque.chequeType === 'INWARD' ? 'DEPOSITED' : 'REALISED'
+                          )
+                        }
+                        className="py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold transition disabled:opacity-50"
+                      >
+                        Clear
+                      </button>
+                      <button
+                        type="button"
+                        disabled={updatingId === cheque.id}
+                        onClick={() => handleStatusChange(cheque.id, 'BOUNCED')}
+                        className="py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-semibold transition disabled:opacity-50"
+                      >
+                        Bounce
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingCheque({ ...cheque })}
+                        className="py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold transition"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        disabled={deletingId === cheque.id}
+                        onClick={() => handleDelete(cheque.id)}
+                        className="py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded text-xs font-semibold transition disabled:opacity-50"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {/* FULL CHEQUE IMAGE PREVIEW MODAL */}
       {viewingImages && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-lg p-6 max-w-3xl w-full space-y-4 shadow-2xl my-8">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-lg p-4 sm:p-6 max-w-3xl w-full space-y-4 shadow-2xl my-8">
             <div className="flex justify-between items-center border-b pb-3">
               <div>
-                <h3 className="text-base font-bold text-gray-800">
+                <h3 className="text-sm sm:text-base font-bold text-gray-800">
                   Cheque Images - #{viewingImages.chequeNo}
                 </h3>
                 <p className="text-xs text-gray-500">Party: {viewingImages.partyName}</p>
@@ -521,7 +636,7 @@ export default function ChequeList({
               <button
                 type="button"
                 onClick={() => setViewingImages(null)}
-                className="text-gray-400 hover:text-gray-600 font-bold text-lg"
+                className="text-gray-400 hover:text-gray-600 font-bold text-lg p-1"
               >
                 ✕
               </button>
@@ -534,10 +649,10 @@ export default function ChequeList({
                   <img
                     src={viewingImages.frontUrl}
                     alt="Cheque Front"
-                    className="max-h-64 mx-auto object-contain rounded border"
+                    className="max-h-56 sm:max-h-64 mx-auto object-contain rounded border"
                   />
                 ) : (
-                  <div className="h-40 flex items-center justify-center text-xs text-gray-400 border border-dashed rounded">
+                  <div className="h-32 sm:h-40 flex items-center justify-center text-xs text-gray-400 border border-dashed rounded">
                     Front image not available
                   </div>
                 )}
@@ -549,10 +664,10 @@ export default function ChequeList({
                   <img
                     src={viewingImages.backUrl}
                     alt="Cheque Back"
-                    className="max-h-64 mx-auto object-contain rounded border"
+                    className="max-h-56 sm:max-h-64 mx-auto object-contain rounded border"
                   />
                 ) : (
-                  <div className="h-40 flex items-center justify-center text-xs text-gray-400 border border-dashed rounded">
+                  <div className="h-32 sm:h-40 flex items-center justify-center text-xs text-gray-400 border border-dashed rounded">
                     Back image not available
                   </div>
                 )}
@@ -563,7 +678,7 @@ export default function ChequeList({
               <button
                 type="button"
                 onClick={() => setViewingImages(null)}
-                className="px-4 py-1.5 bg-gray-800 text-white rounded text-xs font-semibold hover:bg-gray-700 cursor-pointer"
+                className="w-full sm:w-auto px-4 py-2 bg-gray-800 text-white rounded text-xs font-semibold hover:bg-gray-700 cursor-pointer"
               >
                 Close Viewer
               </button>
@@ -574,14 +689,14 @@ export default function ChequeList({
 
       {/* EDIT MODAL */}
       {editingCheque && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-lg p-6 max-w-xl w-full space-y-4 shadow-2xl my-8">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-lg p-4 sm:p-6 max-w-xl w-full space-y-4 shadow-2xl my-8 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b pb-2">
-              <h3 className="text-lg font-bold text-gray-800">Edit Cheque Record Details</h3>
+              <h3 className="text-base sm:text-lg font-bold text-gray-800">Edit Cheque Record Details</h3>
               <button
                 type="button"
                 onClick={() => setEditingCheque(null)}
-                className="text-gray-400 hover:text-gray-600 font-bold text-lg"
+                className="text-gray-400 hover:text-gray-600 font-bold text-lg p-1"
               >
                 ✕
               </button>
@@ -598,7 +713,7 @@ export default function ChequeList({
                         prev ? { ...prev, chequeType: e.target.value as 'INWARD' | 'OUTWARD' } : null
                       )
                     }
-                    className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-500 bg-white"
+                    className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500 bg-white"
                     required
                   >
                     <option value="INWARD">INWARD (Received)</option>
@@ -608,23 +723,12 @@ export default function ChequeList({
 
                 <div>
                   <label className="block font-semibold text-gray-700 mb-1">Status</label>
-                  {/*
-                    NOTE: these values must match the backend ChequeStatus
-                    Prisma enum exactly (PENDING / DEPOSITED / REALISED /
-                    BOUNCED / CANCELLED). The previous version sent the
-                    string "CLEARED", which is not a real enum member —
-                    Prisma rejected the whole update() call whenever an
-                    admin picked it, silently failing to save ANY of the
-                    edited fields in that submission, not just the status.
-                    Double-check these against your schema.prisma if your
-                    enum names differ.
-                  */}
                   <select
                     value={editingCheque.status || 'PENDING'}
                     onChange={(e) =>
                       setEditingCheque((prev) => (prev ? { ...prev, status: e.target.value } : null))
                     }
-                    className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-500 bg-white"
+                    className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500 bg-white"
                   >
                     <option value="PENDING">PENDING</option>
                     <option value="DEPOSITED">DEPOSITED (Inward - Cleared)</option>
@@ -637,15 +741,6 @@ export default function ChequeList({
 
               <div>
                 <label className="block font-semibold text-gray-700 mb-1">Company Account *</label>
-                {/*
-                  IMPORTANT: the backend Prisma column is `ourAccount`.
-                  `ourCompanyAccount` only ever exists client-side (set
-                  when this dropdown itself is changed). Records loaded
-                  from GET /cheques never populate `ourCompanyAccount`,
-                  so checking it alone left this select blank on every
-                  edit even though the account WAS saved — forcing you to
-                  reselect it each time just to satisfy `required`.
-                */}
                 <select
                   value={editingCheque.ourCompanyAccount || editingCheque.ourAccount || editingCheque.accountNumber || ''}
                   onChange={(e) =>
@@ -660,7 +755,7 @@ export default function ChequeList({
                         : null
                     )
                   }
-                  className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-500 bg-white"
+                  className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500 bg-white"
                   required
                 >
                   <option value="">-- Select Company Account --</option>
@@ -681,7 +776,7 @@ export default function ChequeList({
                     onChange={(e) =>
                       setEditingCheque((prev) => (prev ? { ...prev, bankName: e.target.value } : null))
                     }
-                    className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-500"
+                    className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500"
                     required
                   />
                 </div>
@@ -694,7 +789,7 @@ export default function ChequeList({
                     onChange={(e) =>
                       setEditingCheque((prev) => (prev ? { ...prev, branchName: e.target.value } : null))
                     }
-                    className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-500"
+                    className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -708,7 +803,7 @@ export default function ChequeList({
                     onChange={(e) =>
                       setEditingCheque((prev) => (prev ? { ...prev, chequeNo: e.target.value } : null))
                     }
-                    className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-500"
+                    className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500"
                     required
                   />
                 </div>
@@ -722,7 +817,7 @@ export default function ChequeList({
                     onChange={(e) =>
                       setEditingCheque((prev) => (prev ? { ...prev, amount: e.target.value } : null))
                     }
-                    className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-500"
+                    className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500"
                     required
                   />
                 </div>
@@ -737,7 +832,7 @@ export default function ChequeList({
                     onChange={(e) =>
                       setEditingCheque((prev) => (prev ? { ...prev, partyName: e.target.value } : null))
                     }
-                    className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-500"
+                    className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500"
                     required
                   />
                 </div>
@@ -750,18 +845,12 @@ export default function ChequeList({
                     onChange={(e) =>
                       setEditingCheque((prev) => (prev ? { ...prev, chequeDate: e.target.value } : null))
                     }
-                    className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-500"
+                    className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500"
                     required
                   />
                 </div>
               </div>
 
-              {/*
-                REPLACED: raw "Front/Back Image URL" text inputs — the
-                backend never persisted those values anyway. Now these are
-                real file uploads, matching the initial cheque creation
-                form. Leaving a slot empty keeps the currently stored image.
-              */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 border-t pt-3">
                 <div>
                   <label className="block font-semibold text-gray-700 mb-1">Front Image</label>
@@ -812,22 +901,22 @@ export default function ChequeList({
                   onChange={(e) =>
                     setEditingCheque((prev) => (prev ? { ...prev, notes: e.target.value } : null))
                   }
-                  className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-500"
+                  className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500"
                 />
               </div>
 
-              <div className="flex justify-end space-x-2 pt-3 border-t">
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-3 border-t">
                 <button
                   type="button"
                   onClick={() => setEditingCheque(null)}
-                  className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded font-semibold text-gray-700 cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-gray-200 hover:bg-gray-300 rounded font-semibold text-gray-700 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={updatingId === editingCheque.id}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold disabled:opacity-50 cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold disabled:opacity-50 cursor-pointer"
                 >
                   {updatingId === editingCheque.id ? 'Saving Changes...' : 'Save All Changes'}
                 </button>

@@ -81,7 +81,6 @@ export default function DashboardStats({ cheques }: DashboardStatsProps) {
       }
     }
 
-    // Helper to round precision issues inherent to float addition
     const round2 = (val: number) => Math.round(val * 100) / 100;
 
     return {
@@ -108,93 +107,99 @@ export default function DashboardStats({ cheques }: DashboardStatsProps) {
   const formatLKR = (amount: number) => lkrFormatter.format(amount);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 sm:space-y-8">
+      {/* BOUNCED SUMMARY ALERT BANNER */}
+      {metrics.bouncedCount > 0 && (
+        <div className="relative overflow-hidden bg-gradient-to-r from-rose-500/10 via-rose-500/5 to-transparent border border-rose-200 p-4 sm:p-5 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-rose-950 shadow-sm backdrop-blur-sm">
+          <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-rose-500" />
+          <div className="flex items-center space-x-3 min-w-0 pl-1">
+            <div className="p-2 bg-rose-100 rounded-xl text-rose-600 flex-shrink-0 shadow-inner">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <div>
+              <h4 className="text-xs sm:text-sm font-bold text-rose-900 tracking-tight">Attention Required: Bounced Cheques Flagged</h4>
+              <p className="text-[11px] text-rose-700/80">Immediate review needed for recent transaction exceptions.</p>
+            </div>
+          </div>
+          <span className="text-xs font-bold bg-rose-600 text-white px-3.5 py-1.5 rounded-xl shadow-sm whitespace-nowrap">
+            {metrics.bouncedCount} Record{metrics.bouncedCount > 1 ? 's' : ''} Flagged
+          </span>
+        </div>
+      )}
+
       {/* INWARD CHEQUES SECTION */}
-      <section>
-        <div className="flex items-center space-x-2 mb-3">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" />
-          <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-            Inward Cheques (Received)
-          </h3>
+      <section className="space-y-3">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-4 ring-emerald-500/10 flex-shrink-0" />
+            <h3 className="text-xs sm:text-sm font-bold text-slate-800 uppercase tracking-wider">
+              Inward Cheques <span className="text-slate-400 font-normal normal-case ml-1">(Received)</span>
+            </h3>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4">
           <StatCard
             label="Total Inward"
             count={`${metrics.inward.totalCount} Cheques`}
             amount={formatLKR(metrics.inward.totalAmount)}
             variant="emerald"
+            icon="📥"
           />
           <StatCard
             label="Pending / Deposited"
             count={metrics.inward.pendingCount}
             amount={formatLKR(metrics.inward.pendingAmount)}
             variant="amber"
+            icon="⏳"
           />
           <StatCard
             label="Realised / Cleared"
             count={metrics.inward.clearedCount}
             amount={formatLKR(metrics.inward.clearedAmount)}
             variant="neutral-emerald"
+            icon="✅"
           />
         </div>
       </section>
 
       {/* OUTWARD CHEQUES SECTION */}
-      <section>
-        <div className="flex items-center space-x-2 mb-3">
-          <span className="w-2.5 h-2.5 rounded-full bg-orange-500 shadow-sm shadow-orange-500/50" />
-          <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-            Outward Cheques (Issued)
-          </h3>
+      <section className="space-y-3">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-orange-500 ring-4 ring-orange-500/10 flex-shrink-0" />
+            <h3 className="text-xs sm:text-sm font-bold text-slate-800 uppercase tracking-wider">
+              Outward Cheques <span className="text-slate-400 font-normal normal-case ml-1">(Issued)</span>
+            </h3>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4">
           <StatCard
             label="Total Outward"
             count={`${metrics.outward.totalCount} Cheques`}
             amount={formatLKR(metrics.outward.totalAmount)}
             variant="orange"
+            icon="📤"
           />
           <StatCard
             label="Pending Clearance"
             count={metrics.outward.pendingCount}
             amount={formatLKR(metrics.outward.pendingAmount)}
             variant="amber"
+            icon="⏳"
           />
           <StatCard
             label="Realised / Debited"
             count={metrics.outward.clearedCount}
             amount={formatLKR(metrics.outward.clearedAmount)}
             variant="neutral-slate"
+            icon="🏦"
           />
         </div>
       </section>
-
-      {/* BOUNCED SUMMARY ALERT */}
-      {metrics.bouncedCount > 0 && (
-        <div className="bg-rose-50 border border-rose-200/80 p-3.5 rounded-xl flex items-center justify-between text-rose-900 shadow-sm">
-          <div className="flex items-center space-x-2">
-            <svg
-              className="w-4 h-4 text-rose-600 flex-shrink-0"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-              />
-            </svg>
-            <span className="text-xs font-bold">Bounced Cheques Flagged</span>
-          </div>
-          <span className="text-xs font-extrabold bg-rose-200/80 text-rose-950 px-3 py-1 rounded-full">
-            {metrics.bouncedCount} Bounced Record{metrics.bouncedCount > 1 ? 's' : ''}
-          </span>
-        </div>
-      )}
     </div>
   );
 }
@@ -205,55 +210,68 @@ interface StatCardProps {
   count: number | string;
   amount: string;
   variant: 'emerald' | 'amber' | 'orange' | 'neutral-emerald' | 'neutral-slate';
+  icon: string;
 }
 
-function StatCard({ label, count, amount, variant }: StatCardProps) {
+function StatCard({ label, count, amount, variant, icon }: StatCardProps) {
   const styles = {
     emerald: {
-      card: 'bg-gradient-to-br from-emerald-50/80 to-emerald-100/30 border-emerald-200/80',
-      label: 'text-emerald-800',
-      badge: 'bg-emerald-200/80 text-emerald-900',
+      card: 'bg-gradient-to-br from-emerald-50/90 via-white to-emerald-100/40 border-emerald-200/80 shadow-emerald-900/5',
+      label: 'text-emerald-900',
+      badge: 'bg-emerald-200/90 text-emerald-950 shadow-xs',
       amount: 'text-emerald-950',
+      iconBg: 'bg-emerald-100/80 text-emerald-700',
     },
     amber: {
-      card: 'bg-gradient-to-br from-amber-50/80 to-amber-100/30 border-amber-200/80',
-      label: 'text-amber-800',
-      badge: 'bg-amber-200/80 text-amber-900',
+      card: 'bg-gradient-to-br from-amber-50/90 via-white to-amber-100/40 border-amber-200/80 shadow-amber-900/5',
+      label: 'text-amber-900',
+      badge: 'bg-amber-200/90 text-amber-950 shadow-xs',
       amount: 'text-amber-950',
+      iconBg: 'bg-amber-100/80 text-amber-700',
     },
     orange: {
-      card: 'bg-gradient-to-br from-orange-50/80 to-orange-100/30 border-orange-200/80',
-      label: 'text-orange-800',
-      badge: 'bg-orange-200/80 text-orange-900',
+      card: 'bg-gradient-to-br from-orange-50/90 via-white to-orange-100/40 border-orange-200/80 shadow-orange-900/5',
+      label: 'text-orange-900',
+      badge: 'bg-orange-200/90 text-orange-950 shadow-xs',
       amount: 'text-orange-950',
+      iconBg: 'bg-orange-100/80 text-orange-700',
     },
     'neutral-emerald': {
-      card: 'bg-white border-slate-200',
-      label: 'text-slate-500',
-      badge: 'bg-slate-100 text-slate-700',
-      amount: 'text-emerald-600',
+      card: 'bg-gradient-to-br from-white via-slate-50/50 to-slate-100/40 border-slate-200/80 shadow-slate-900/5',
+      label: 'text-slate-600',
+      badge: 'bg-slate-200/70 text-slate-800 shadow-xs',
+      amount: 'text-emerald-700',
+      iconBg: 'bg-slate-100 text-slate-700',
     },
     'neutral-slate': {
-      card: 'bg-white border-slate-200',
-      label: 'text-slate-500',
-      badge: 'bg-slate-100 text-slate-700',
-      amount: 'text-slate-800',
+      card: 'bg-gradient-to-br from-white via-slate-50/50 to-slate-100/40 border-slate-200/80 shadow-slate-900/5',
+      label: 'text-slate-600',
+      badge: 'bg-slate-200/70 text-slate-800 shadow-xs',
+      amount: 'text-slate-900',
+      iconBg: 'bg-slate-100 text-slate-700',
     },
   }[variant];
 
   return (
-    <div className={`${styles.card} p-4 rounded-xl border shadow-sm`}>
-      <div className="flex justify-between items-center">
-        <span className={`text-xs font-bold uppercase tracking-wider ${styles.label}`}>
-          {label}
-        </span>
-        <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold ${styles.badge}`}>
+    <div className={`${styles.card} p-4 sm:p-5 rounded-2xl border shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 min-w-0 flex flex-col justify-between`}>
+      <div className="flex justify-between items-start gap-2">
+        <div className="flex items-center space-x-2 min-w-0">
+          <span className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs flex-shrink-0 ${styles.iconBg} shadow-inner`}>
+            {icon}
+          </span>
+          <span className={`text-[11px] sm:text-xs font-bold uppercase tracking-wider truncate ${styles.label}`}>
+            {label}
+          </span>
+        </div>
+        <span className={`text-[10px] sm:text-[11px] px-2.5 py-0.5 rounded-full font-bold flex-shrink-0 whitespace-nowrap ${styles.badge}`}>
           {count}
         </span>
       </div>
-      <p className={`text-xl font-black mt-3 tracking-tight ${styles.amount}`}>
-        {amount}
-      </p>
+      <div className="mt-3 sm:mt-4">
+        <p className={`text-xl sm:text-2xl font-black tracking-tight break-words ${styles.amount}`}>
+          {amount}
+        </p>
+      </div>
     </div>
   );
 }

@@ -106,10 +106,6 @@ export default function ChequeReport({ token }: ChequeReportProps) {
 
   const getStatusLabel = (status?: string) => (status || 'PENDING').toUpperCase();
 
-  // Human-readable summary of whatever filters produced this result set —
-  // this is what turns the printout into a self-contained audit record
-  // instead of a bare table (a reviewer six months from now needs to know
-  // exactly what scope this report covers without asking the person who ran it).
   const activeFilterSummary = (): { label: string; value: string }[] => {
     const items: { label: string; value: string }[] = [];
     items.push({
@@ -123,21 +119,7 @@ export default function ChequeReport({ token }: ChequeReportProps) {
   };
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 max-w-6xl mx-auto space-y-6 print:shadow-none print:border-none print:p-0 print:max-w-none">
-      {/*
-        Print isolation: by default `window.print()` prints the ENTIRE page —
-        header, dashboard stats, the cheque entry form, the cheque list table,
-        everything — because those all live outside this component's own DOM
-        tree, so scattered `print:hidden` classes inside ChequeReport can't
-        reach them.
-
-        The fix: hide every single element on the page during print, then
-        explicitly re-reveal only the `.printable-audit-report` subtree (and
-        pull it out of normal flow so it isn't left in whatever empty space
-        the rest of the now-invisible page used to occupy). This is a global
-        stylesheet, so it reaches outside this component regardless of what
-        else is rendered on the page around it.
-      */}
+    <div className="bg-white p-4 sm:p-8 rounded-2xl shadow-xl border border-slate-100 w-full max-w-6xl mx-auto space-y-6 overflow-hidden print:shadow-none print:border-none print:p-0 print:max-w-none">
       <style jsx global>{`
         @media print {
           @page {
@@ -179,10 +161,10 @@ export default function ChequeReport({ token }: ChequeReportProps) {
         }
       `}</style>
 
-      <div className="flex justify-between items-center border-b pb-4 print:hidden">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 border-b border-slate-100 pb-4 print:hidden">
         <div>
-          <h2 className="text-xl font-bold text-gray-800">Audit Search & Report Engine</h2>
-          <p className="text-xs text-gray-500">
+          <h2 className="text-base sm:text-xl font-black text-slate-900 tracking-tight">Audit Search & Report Engine</h2>
+          <p className="text-xs text-slate-500 mt-0.5">
             Filter ledger records by date range, company account, issuing bank, or transaction classification.
           </p>
         </div>
@@ -190,85 +172,92 @@ export default function ChequeReport({ token }: ChequeReportProps) {
           <button
             onClick={handlePrint}
             type="button"
-            className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded shadow transition cursor-pointer"
+            className="inline-flex items-center justify-center px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition cursor-pointer space-x-1.5 w-full sm:w-auto print:hidden"
           >
-            🖨️ Print Report
+            <span>🖨️</span>
+            <span>Print Report</span>
           </button>
         )}
       </div>
 
-      {/* FILTER CONTROLS - HIDDEN WHEN PRINTING */}
-      <form onSubmit={fetchReport} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 print:hidden">
-        <div>
-          <label htmlFor="startDate" className="block text-xs font-semibold text-gray-700">Start Date</label>
+      {/* FILTER CONTROLS - MOBILE RESPONSIVE GRID */}
+      <form onSubmit={fetchReport} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5 print:hidden bg-slate-50/60 p-4 sm:p-5 rounded-2xl border border-slate-100">
+        <div className="relative">
+          <label htmlFor="startDate" className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Start Date</label>
           <input
             id="startDate"
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="w-full mt-1 p-2 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            className="w-full p-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none shadow-2xl block"
           />
         </div>
 
-        <div>
-          <label htmlFor="endDate" className="block text-xs font-semibold text-gray-700">End Date</label>
+        <div className="relative">
+          <label htmlFor="endDate" className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">End Date</label>
           <input
             id="endDate"
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="w-full mt-1 p-2 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            className="w-full p-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none shadow-2xl block"
           />
         </div>
 
         <div>
-          <label htmlFor="accountFilter" className="block text-xs font-semibold text-gray-700">Our Company Account</label>
-          <select
-            id="accountFilter"
-            value={accountFilter}
-            onChange={(e) => setAccountFilter(e.target.value)}
-            className="w-full mt-1 p-2 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white"
-          >
-            <option value="">All Company Accounts</option>
-            {OUR_COMPANY_ACCOUNTS.map((account) => (
-              <option key={account.id} value={account.label}>
-                {account.label}
-              </option>
-            ))}
-          </select>
+          <label htmlFor="accountFilter" className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Our Company Account</label>
+          <div className="relative">
+            <select
+              id="accountFilter"
+              value={accountFilter}
+              onChange={(e) => setAccountFilter(e.target.value)}
+              className="w-full p-2.5 pr-8 border border-slate-200 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none bg-white shadow-2xs truncate appearance-none"
+            >
+              <option value="">All Company Accounts</option>
+              {OUR_COMPANY_ACCOUNTS.map((account) => (
+                <option key={account.id} value={account.label}>
+                  {account.label}
+                </option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-500 text-xs">▼</div>
+          </div>
         </div>
 
         <div>
-          <label htmlFor="typeFilter" className="block text-xs font-semibold text-gray-700">Cheque Type</label>
-          <select
-            id="typeFilter"
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className="w-full mt-1 p-2 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white"
-          >
-            <option value="ALL">All Types</option>
-            <option value="INWARD">Received (Inward)</option>
-            <option value="OUTWARD">Issued (Outward)</option>
-          </select>
+          <label htmlFor="typeFilter" className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Cheque Type</label>
+          <div className="relative">
+            <select
+              id="typeFilter"
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="w-full p-2.5 pr-8 border border-slate-200 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none bg-white shadow-2xs truncate appearance-none"
+            >
+              <option value="ALL">All Types</option>
+              <option value="INWARD">Received (Inward)</option>
+              <option value="OUTWARD">Issued (Outward)</option>
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-500 text-xs">▼</div>
+          </div>
         </div>
 
         <div>
-          <label htmlFor="bankFilter" className="block text-xs font-semibold text-gray-700">Search Bank / Party</label>
+          <label htmlFor="bankFilter" className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Search Bank / Party</label>
           <input
             id="bankFilter"
             type="text"
             placeholder="e.g. Commercial Bank"
             value={bankFilter}
             onChange={(e) => setBankFilter(e.target.value)}
-            className="w-full mt-1 p-2 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            className="w-full p-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none shadow-2xs"
           />
         </div>
 
-        <div className="sm:col-span-2 md:col-span-3 lg:col-span-5 flex justify-end space-x-2">
+        <div className="sm:col-span-2 md:col-span-3 lg:col-span-5 flex justify-end pt-1">
           <button
             type="submit"
             disabled={loading}
-            className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-medium text-sm rounded shadow disabled:bg-slate-400 transition cursor-pointer"
+            className="w-full sm:w-auto px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md disabled:bg-slate-400 transition cursor-pointer"
           >
             {loading ? 'Searching Ledger...' : 'Generate Audit Report'}
           </button>
@@ -276,7 +265,7 @@ export default function ChequeReport({ token }: ChequeReportProps) {
       </form>
 
       {errorMsg && (
-        <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded print:hidden">
+        <div className="p-4 bg-rose-50 border border-rose-200 text-rose-800 text-xs sm:text-sm rounded-xl print:hidden">
           {errorMsg}
         </div>
       )}
@@ -284,25 +273,16 @@ export default function ChequeReport({ token }: ChequeReportProps) {
       {/* REPORT DATA RESULTS */}
       {searched && (
         <div className="space-y-4">
-          {/* Screen-only summary bar — intentionally left OUTSIDE
-              printable-audit-report, so it's hidden by the global print
-              rule along with the rest of the page chrome. The print
-              version gets its own letterhead below instead. */}
-          <div className="flex justify-between items-center text-sm font-medium text-gray-700 border-b pb-2 print:hidden">
-            <span>Records Found: <strong>{reportData.length}</strong></span>
-            <span>Total Value: <strong className="text-emerald-700">LKR {calculateTotal().toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></span>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 text-xs sm:text-sm font-semibold text-slate-700 border-b border-slate-100 pb-3 print:hidden">
+            <span>Records Found: <strong className="text-slate-900">{reportData.length}</strong></span>
+            <span>Total Value: <strong className="text-emerald-700 font-mono">LKR {calculateTotal().toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></span>
           </div>
 
           {reportData.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-8">No matching cheque records found for the selected parameters.</p>
+            <p className="text-sm text-slate-400 text-center py-12">No matching cheque records found for the selected parameters.</p>
           ) : (
             <div className="printable-audit-report">
-              {/* PRINT-ONLY LETTERHEAD — lives inside printable-audit-report
-                  so it's one of the only things that survives the print
-                  hide-everything rule. This is what makes the printed page
-                  read as a standalone audit document (title, generation
-                  timestamp, and the exact filter scope applied) rather than
-                  a bare table. */}
+              {/* PRINT-ONLY LETTERHEAD */}
               <div className="hidden print:block mb-6">
                 <div className="flex justify-between items-start border-b-4 border-double border-slate-800 pb-3">
                   <div>
@@ -325,71 +305,124 @@ export default function ChequeReport({ token }: ChequeReportProps) {
                 </dl>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="audit-report-table w-full text-left border-collapse text-xs print:text-[10px]">
+              {/* MOBILE CARD VIEW (< 640px) - Eliminates horizontal table squishing */}
+              <div className="block sm:hidden space-y-3 print:hidden">
+                {reportData.map((item, index) => {
+                  const isInward = item.chequeType === 'INWARD';
+                  return (
+                    <div key={item.id || index} className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-[11px] font-bold text-slate-400">#{index + 1}</span>
+                          <span className="font-mono font-bold text-xs text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md">
+                            {item.chequeNo}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700`}>
+                            {getStatusLabel(item.status)}
+                          </span>
+                          <span
+                            className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full tracking-wider ${
+                              isInward ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60' : 'bg-amber-50 text-amber-700 border border-amber-200/60'
+                            }`}
+                          >
+                            {item.chequeType}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="block text-[10px] uppercase font-bold text-slate-400">Bank / Branch</span>
+                          <span className="font-medium text-slate-700 truncate block">{item.bankName} {item.branchName ? `(${item.branchName})` : ''}</span>
+                        </div>
+                        <div>
+                          <span className="block text-[10px] uppercase font-bold text-slate-400">Cheque Date</span>
+                          <span className="font-medium text-slate-700">{formatDate(item.chequeDate)}</span>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="block text-[10px] uppercase font-bold text-slate-400">Party Name</span>
+                          <span className="font-medium text-slate-800">{item.partyName || 'N/A'}</span>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="block text-[10px] uppercase font-bold text-slate-400">Company Account</span>
+                          <span className="font-medium text-slate-600 truncate block text-[11px]">{item.ourAccount || 'N/A'}</span>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-slate-100 pt-2.5 flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-slate-500 uppercase">Amount</span>
+                        <span className="text-sm font-black text-slate-900 font-mono">LKR {Number(item.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* DESKTOP TABLE VIEW (≥ 640px) & PRINT VIEW */}
+              <div className="hidden sm:block print:block w-full overflow-x-auto rounded-xl border border-slate-200/80 shadow-2xs">
+                <table className="audit-report-table w-full text-left border-collapse text-xs print:text-[10px] min-w-[750px]">
                   <thead>
-                    <tr className="bg-slate-100 border-b text-slate-700 print:bg-slate-50">
-                      <th className="p-2 border font-bold print:text-[9px] print:uppercase print:tracking-wide">#</th>
-                      <th className="p-2 border font-bold print:text-[9px] print:uppercase print:tracking-wide">Cheque No</th>
-                      <th className="p-2 border font-bold print:text-[9px] print:uppercase print:tracking-wide">Type</th>
-                      <th className="p-2 border font-bold print:text-[9px] print:uppercase print:tracking-wide">Company Account</th>
-                      <th className="p-2 border font-bold print:text-[9px] print:uppercase print:tracking-wide">Bank &amp; Branch</th>
-                      <th className="p-2 border font-bold print:text-[9px] print:uppercase print:tracking-wide">Party Name</th>
-                      <th className="p-2 border font-bold print:text-[9px] print:uppercase print:tracking-wide">Cheque Date</th>
-                      <th className="p-2 border font-bold print:text-[9px] print:uppercase print:tracking-wide">Status</th>
-                      <th className="p-2 border font-bold text-right print:text-[9px] print:uppercase print:tracking-wide">Amount (LKR)</th>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 print:bg-slate-50">
+                      <th className="p-3 border-r border-slate-200 font-bold print:text-[9px] print:uppercase print:tracking-wide">#</th>
+                      <th className="p-3 border-r border-slate-200 font-bold print:text-[9px] print:uppercase print:tracking-wide">Cheque No</th>
+                      <th className="p-3 border-r border-slate-200 font-bold print:text-[9px] print:uppercase print:tracking-wide">Type</th>
+                      <th className="p-3 border-r border-slate-200 font-bold print:text-[9px] print:uppercase print:tracking-wide">Company Account</th>
+                      <th className="p-3 border-r border-slate-200 font-bold print:text-[9px] print:uppercase print:tracking-wide">Bank &amp; Branch</th>
+                      <th className="p-3 border-r border-slate-200 font-bold print:text-[9px] print:uppercase print:tracking-wide">Party Name</th>
+                      <th className="p-3 border-r border-slate-200 font-bold print:text-[9px] print:uppercase print:tracking-wide">Cheque Date</th>
+                      <th className="p-3 border-r border-slate-200 font-bold print:text-[9px] print:uppercase print:tracking-wide">Status</th>
+                      <th className="p-3 font-bold text-right print:text-[9px] print:uppercase print:tracking-wide">Amount (LKR)</th>
                     </tr>
                   </thead>
                   <tbody>
                     {reportData.map((item, idx) => (
-                      <tr key={item.id} className="border-b hover:bg-slate-50 print:hover:bg-transparent">
-                        <td className="p-2 border text-gray-400 print:text-slate-500">{idx + 1}</td>
-                        <td className="p-2 border font-mono font-semibold text-slate-800">{item.chequeNo}</td>
-                        <td className="p-2 border">
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold print:px-0 print:py-0 print:rounded-none print:bg-transparent print:font-bold ${
-                            item.chequeType === 'INWARD' ? 'bg-emerald-100 text-emerald-800 print:text-emerald-800' : 'bg-amber-100 text-amber-800 print:text-amber-800'
+                      <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors print:hover:bg-transparent">
+                        <td className="p-3 border-r border-slate-100 text-slate-400 print:text-slate-500">{idx + 1}</td>
+                        <td className="p-3 border-r border-slate-100 font-mono font-bold text-slate-800">{item.chequeNo}</td>
+                        <td className="p-3 border-r border-slate-100">
+                          <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold inline-block print:px-0 print:py-0 print:rounded-none print:bg-transparent print:font-bold ${
+                            item.chequeType === 'INWARD' ? 'bg-emerald-50 text-emerald-700 print:text-emerald-800' : 'bg-amber-50 text-amber-700 print:text-amber-800'
                           }`}>
                             {item.chequeType}
                           </span>
                         </td>
-                        <td className="p-2 border text-gray-600 max-w-xs truncate print:max-w-none print:whitespace-normal" title={item.ourAccount}>
+                        <td className="p-3 border-r border-slate-100 text-slate-600 max-w-[180px] truncate print:max-w-none print:whitespace-normal" title={item.ourAccount}>
                           {item.ourAccount || 'N/A'}
                         </td>
-                        <td className="p-2 border">{item.bankName} {item.branchName ? `(${item.branchName})` : ''}</td>
-                        <td className="p-2 border">{item.partyName}</td>
-                        <td className="p-2 border whitespace-nowrap">{formatDate(item.chequeDate)}</td>
-                        <td className="p-2 border whitespace-nowrap text-[10px] font-semibold print:text-[9px]">
+                        <td className="p-3 border-r border-slate-100 text-slate-700">{item.bankName} {item.branchName ? `(${item.branchName})` : ''}</td>
+                        <td className="p-3 border-r border-slate-100 text-slate-700 font-medium">{item.partyName}</td>
+                        <td className="p-3 border-r border-slate-100 whitespace-nowrap text-slate-600">{formatDate(item.chequeDate)}</td>
+                        <td className="p-3 border-r border-slate-100 whitespace-nowrap text-[10px] font-bold text-slate-700">
                           {getStatusLabel(item.status)}
                         </td>
-                        <td className="p-2 border text-right font-mono font-semibold">
+                        <td className="p-3 text-right font-mono font-bold text-slate-900">
                           {Number(item.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
-                    {/* Break-down subtotals — small addition, but for an accounting
-                        audience "inward vs outward totals" is the number people
-                        actually reach for, not just the grand total. */}
-                    <tr className="bg-slate-50 text-slate-600 print:bg-transparent">
-                      <td colSpan={8} className="p-2 border text-right text-[10px] print:text-[9px]">
+                    <tr className="bg-slate-50/50 text-slate-600 print:bg-transparent">
+                      <td colSpan={8} className="p-3 border-r border-t border-slate-200 text-right text-xs font-semibold print:text-[9px]">
                         Inward Subtotal ({reportData.filter((r) => r.chequeType === 'INWARD').length} records):
                       </td>
-                      <td className="p-2 border text-right font-mono text-[10px] print:text-[9px]">
+                      <td className="p-3 border-t border-slate-200 text-right font-mono text-xs font-semibold print:text-[9px]">
                         {calculateTypeTotal('INWARD').toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </td>
                     </tr>
-                    <tr className="bg-slate-50 text-slate-600 print:bg-transparent">
-                      <td colSpan={8} className="p-2 border text-right text-[10px] print:text-[9px]">
+                    <tr className="bg-slate-50/50 text-slate-600 print:bg-transparent">
+                      <td colSpan={8} className="p-3 border-r border-slate-200 text-right text-xs font-semibold print:text-[9px]">
                         Outward Subtotal ({reportData.filter((r) => r.chequeType === 'OUTWARD').length} records):
                       </td>
-                      <td className="p-2 border text-right font-mono text-[10px] print:text-[9px]">
+                      <td className="p-3 text-right font-mono text-xs font-semibold print:text-[9px]">
                         {calculateTypeTotal('OUTWARD').toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </td>
                     </tr>
-                    <tr className="bg-slate-200 font-bold">
-                      <td colSpan={8} className="p-2 border text-right">TOTAL SUMMARY:</td>
-                      <td className="p-2 border text-right font-mono text-emerald-800">
+                    <tr className="bg-slate-900 text-white font-bold">
+                      <td colSpan={8} className="p-3 border-r border-slate-800 text-right text-xs uppercase tracking-wider">Total Summary:</td>
+                      <td className="p-3 text-right font-mono text-xs text-emerald-400">
                         LKR {calculateTotal().toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </td>
                     </tr>
@@ -397,8 +430,7 @@ export default function ChequeReport({ token }: ChequeReportProps) {
                 </table>
               </div>
 
-              {/* PRINT-ONLY SIGN-OFF BLOCK — an audit ledger printed for filing or
-                  handover needs somewhere for a human to actually sign it. */}
+              {/* PRINT-ONLY SIGN-OFF BLOCK */}
               <div className="audit-report-footer hidden print:block mt-10 pt-4 border-t border-slate-300">
                 <div className="grid grid-cols-3 gap-8 text-[10px] text-slate-600">
                   <div>

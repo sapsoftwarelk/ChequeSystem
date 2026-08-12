@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { getApiBaseUrl } from '@/app/config';
 import { OUR_COMPANY_ACCOUNTS } from '@/constants/bankAccounts';
@@ -59,8 +59,19 @@ export default function ChequeForm({ onChequeAdded, token }: ChequeFormProps) {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
+  // Dropdown open/close state management
+  const [openDropdown, setOpenDropdown] = useState<'type' | 'account' | 'bank' | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setOpenDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
     return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
       if (frontPreview) URL.revokeObjectURL(frontPreview);
       if (backPreview) URL.revokeObjectURL(backPreview);
     };
@@ -71,7 +82,12 @@ export default function ChequeForm({ onChequeAdded, token }: ChequeFormProps) {
     setTimeout(() => setToast(null), 4000);
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (field: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    setOpenDropdown(null);
+  };
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -163,129 +179,159 @@ export default function ChequeForm({ onChequeAdded, token }: ChequeFormProps) {
   const isInward = formData.chequeType === 'INWARD';
 
   return (
-    <div className="relative">
+    <div className="relative w-full" ref={dropdownRef}>
       {toast && (
         <div
           role="alert"
           aria-live="assertive"
-          className={`fixed bottom-5 right-5 z-50 flex items-center p-4 rounded-lg shadow-xl text-white border transition-all duration-300 transform translate-y-0 ${
-            toast.type === 'success' ? 'bg-emerald-600 border-emerald-500' : 'bg-rose-600 border-rose-500'
+          className={`fixed bottom-5 right-5 z-50 flex items-center px-4 py-3 rounded-xl shadow-2xl text-white border backdrop-blur-md transition-all duration-300 transform translate-y-0 ${
+            toast.type === 'success' ? 'bg-emerald-600/95 border-emerald-500' : 'bg-rose-600/95 border-rose-500'
           }`}
         >
-          <div className="flex items-center space-x-2">
-            <span aria-hidden="true">{toast.type === 'success' ? '✅' : '❌'}</span>
-            <span className="font-semibold text-sm tracking-wide">{toast.message}</span>
+          <div className="flex items-center space-x-2.5">
+            <span aria-hidden="true" className="text-base">{toast.type === 'success' ? '✅' : '❌'}</span>
+            <span className="font-semibold text-xs sm:text-sm tracking-wide">{toast.message}</span>
           </div>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-md border border-gray-200 max-w-2xl mx-auto space-y-4">
-        <h2 className="text-xl font-bold text-gray-800 border-b pb-2 flex items-center justify-between">
-          <span>Add New Cheque Entry</span>
+      <form onSubmit={handleSubmit} className="bg-white p-4 sm:p-8 rounded-2xl shadow-xl border border-slate-100 w-full max-w-2xl mx-auto space-y-6">
+        <div className="border-b border-slate-100 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <h2 className="text-base sm:text-xl font-black text-slate-900 tracking-tight">Add New Cheque Entry</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Record incoming or outgoing payment instruments securely.</p>
+          </div>
           {loading && (
-            <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded animate-pulse" aria-live="polite">
-              Syncing...
+            <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full animate-pulse flex items-center space-x-1 w-fit" aria-live="polite">
+              <span>Syncing...</span>
             </span>
           )}
-        </h2>
+        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="chequeType" className="block text-sm font-semibold text-gray-700">Cheque Type</label>
-            <select
-              id="chequeType"
-              name="chequeType"
-              value={formData.chequeType}
-              onChange={handleInputChange}
-              className="w-full mt-1 p-2 border border-gray-300 rounded-md text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none text-sm bg-white"
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+          {/* CUSTOM DROPDOWN: CHEQUE TYPE */}
+          <div className="relative">
+            <label className="block text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Cheque Type</label>
+            <button
+              type="button"
+              onClick={() => setOpenDropdown(openDropdown === 'type' ? null : 'type')}
+              className="w-full p-2.5 pr-8 border border-slate-200 rounded-xl text-slate-700 text-xs sm:text-sm bg-white font-medium shadow-2xs text-left truncate flex items-center justify-between transition focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
             >
-              <option value="INWARD">Received (Inward)</option>
-              <option value="OUTWARD">Issued (Outward - Our Cheque)</option>
-            </select>
+              <span className="truncate">{formData.chequeType === 'INWARD' ? 'Received (Inward)' : 'Issued (Outward - Our Cheque)'}</span>
+              <span className="text-slate-400 text-xs">▼</span>
+            </button>
+            {openDropdown === 'type' && (
+              <div className="absolute z-30 mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
+                <div
+                  onClick={() => handleInputChange('chequeType', 'INWARD')}
+                  className="p-2.5 text-xs sm:text-sm hover:bg-slate-50 cursor-pointer text-slate-700 font-medium border-b border-slate-100"
+                >
+                  Received (Inward)
+                </div>
+                <div
+                  onClick={() => handleInputChange('chequeType', 'OUTWARD')}
+                  className="p-2.5 text-xs sm:text-sm hover:bg-slate-50 cursor-pointer text-slate-700 font-medium"
+                >
+                  Issued (Outward - Our Cheque)
+                </div>
+              </div>
+            )}
           </div>
 
           <div>
-            <label htmlFor="chequeNo" className="block text-sm font-semibold text-gray-700">Cheque No</label>
+            <label htmlFor="chequeNo" className="block text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Cheque No</label>
             <input
               id="chequeNo"
               type="text"
               name="chequeNo"
               value={formData.chequeNo}
-              onChange={handleInputChange}
+              onChange={handleTextChange}
               required
               placeholder="e.g. 102458"
-              className="w-full mt-1 p-2 border border-gray-300 rounded-md text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none font-mono text-sm"
+              className="w-full p-2.5 border border-slate-200 rounded-xl text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none font-mono text-xs sm:text-sm shadow-2xs transition block"
             />
           </div>
 
-          <div className="col-span-1 sm:col-span-2">
-            <label htmlFor="ourCompanyAccount" className="block text-sm font-semibold text-gray-700">
+          {/* CUSTOM DROPDOWN: COMPANY ACCOUNT */}
+          <div className="col-span-1 sm:col-span-2 relative">
+            <label className="block text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
               {isInward ? 'Target Deposit Account (Our Bank Account)' : 'Source Issuing Account (Which of Our Accounts Issued This Cheque)'}
             </label>
-            <select
-              id="ourCompanyAccount"
-              name="ourCompanyAccount"
-              value={formData.ourCompanyAccount}
-              onChange={handleInputChange}
-              required
-              className={`w-full mt-1 p-2 border rounded-md text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none text-sm font-medium ${
-                isInward ? 'border-amber-300 bg-amber-50/30' : 'border-orange-300 bg-orange-50/30'
+            <button
+              type="button"
+              onClick={() => setOpenDropdown(openDropdown === 'account' ? null : 'account')}
+              className={`w-full p-2.5 pr-8 border rounded-xl text-xs sm:text-sm font-semibold text-left truncate flex items-center justify-between transition shadow-2xs outline-none ${
+                isInward ? 'border-emerald-200 bg-emerald-50/20 text-emerald-900' : 'border-orange-200 bg-orange-50/20 text-orange-900'
               }`}
             >
-              <option value="" disabled>
-                {isInward ? '-- Select Our Target Deposit Account --' : '-- Select Our Issuing Bank Account --'}
-              </option>
-              {OUR_COMPANY_ACCOUNTS.map((account) => (
-                <option key={account.id} value={account.label}>
-                  {account.label}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-gray-500 mt-1">
+              <span className="truncate">
+                {formData.ourCompanyAccount || (isInward ? '-- Select Our Target Deposit Account --' : '-- Select Our Issuing Bank Account --')}
+              </span>
+              <span className="text-slate-400 text-xs">▼</span>
+            </button>
+            {openDropdown === 'account' && (
+              <div className="absolute z-30 mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto">
+                {OUR_COMPANY_ACCOUNTS.map((account) => (
+                  <div
+                    key={account.id}
+                    onClick={() => handleInputChange('ourCompanyAccount', account.label)}
+                    className="p-2.5 text-xs sm:text-sm hover:bg-slate-50 cursor-pointer text-slate-700 border-b border-slate-100 last:border-none truncate"
+                  >
+                    {account.label}
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-[11px] text-slate-400 mt-1.5">
               {isInward
                 ? 'Select the internal account where this received cheque will be deposited.'
                 : 'Select our company account from which money will be debited.'}
             </p>
           </div>
 
-          <div>
-            <label htmlFor="bankName" className="block text-sm font-semibold text-gray-700">
+          {/* CUSTOM DROPDOWN: BANK NAME */}
+          <div className="relative">
+            <label className="block text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
               {isInward ? 'Drawn Bank Name' : 'Issuing Bank Name'}
             </label>
-            <select
-              id="bankName"
-              name="bankName"
-              value={formData.bankName}
-              onChange={handleInputChange}
-              required
-              className="w-full mt-1 p-2 border border-gray-300 rounded-md text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none text-sm bg-white"
+            <button
+              type="button"
+              onClick={() => setOpenDropdown(openDropdown === 'bank' ? null : 'bank')}
+              className="w-full p-2.5 pr-8 border border-slate-200 rounded-xl text-slate-700 text-xs sm:text-sm bg-white font-medium shadow-2xs text-left truncate flex items-center justify-between transition focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
             >
-              <option value="" disabled>
-                -- Select Local Bank --
-              </option>
-              {SRI_LANKAN_BANKS.map((bank) => (
-                <option key={bank.code} value={bank.name}>
-                  {bank.name}
-                </option>
-              ))}
-            </select>
+              <span className="truncate">{formData.bankName || '-- Select Local Bank --'}</span>
+              <span className="text-slate-400 text-xs">▼</span>
+            </button>
+            {openDropdown === 'bank' && (
+              <div className="absolute z-30 mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto">
+                {SRI_LANKAN_BANKS.map((bank) => (
+                  <div
+                    key={bank.code}
+                    onClick={() => handleInputChange('bankName', bank.name)}
+                    className="p-2.5 text-xs sm:text-sm hover:bg-slate-50 cursor-pointer text-slate-700 border-b border-slate-100 last:border-none truncate"
+                  >
+                    {bank.name}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div>
-            <label htmlFor="branchName" className="block text-sm font-semibold text-gray-700">Branch Name</label>
+            <label htmlFor="branchName" className="block text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Branch Name</label>
             <input
               id="branchName"
               type="text"
               name="branchName"
               value={formData.branchName}
-              onChange={handleInputChange}
+              onChange={handleTextChange}
               placeholder="e.g. Veyangoda, Colombo 07"
-              className="w-full mt-1 p-2 border border-gray-300 rounded-md text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none text-sm"
+              className="w-full p-2.5 border border-slate-200 rounded-xl text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none text-xs sm:text-sm shadow-2xs transition block"
             />
           </div>
 
           <div>
-            <label htmlFor="amount" className="block text-sm font-semibold text-gray-700">Amount (LKR)</label>
+            <label htmlFor="amount" className="block text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Amount (LKR)</label>
             <input
               id="amount"
               type="number"
@@ -293,15 +339,15 @@ export default function ChequeForm({ onChequeAdded, token }: ChequeFormProps) {
               step="0.01"
               min="0.01"
               value={formData.amount}
-              onChange={handleInputChange}
+              onChange={handleTextChange}
               required
               placeholder="0.00"
-              className="w-full mt-1 p-2 border border-gray-300 rounded-md text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none text-sm"
+              className="w-full p-2.5 border border-slate-200 rounded-xl text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none text-xs sm:text-sm shadow-2xs transition block"
             />
           </div>
 
           <div>
-            <label htmlFor="partyName" className="block text-sm font-semibold text-gray-700">
+            <label htmlFor="partyName" className="block text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
               {isInward ? 'Payer (Received From)' : 'Payee (Paid To)'}
             </label>
             <input
@@ -309,53 +355,54 @@ export default function ChequeForm({ onChequeAdded, token }: ChequeFormProps) {
               type="text"
               name="partyName"
               value={formData.partyName}
-              onChange={handleInputChange}
+              onChange={handleTextChange}
               required
               placeholder={isInward ? 'e.g. Customer / Vendor Name' : 'e.g. Supplier / Recipient Name'}
-              className="w-full mt-1 p-2 border border-gray-300 rounded-md text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none text-sm"
+              className="w-full p-2.5 border border-slate-200 rounded-xl text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none text-xs sm:text-sm shadow-2xs transition block"
             />
           </div>
 
           <div className="col-span-1 sm:col-span-2">
-            <label htmlFor="chequeDate" className="block text-sm font-semibold text-gray-700">Cheque Date</label>
+            <label htmlFor="chequeDate" className="block text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Cheque Date</label>
             <input
               id="chequeDate"
               type="date"
               name="chequeDate"
               value={formData.chequeDate}
-              onChange={handleInputChange}
+              onChange={handleTextChange}
               required
-              className="w-full mt-1 p-2 border border-gray-300 rounded-md text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none text-sm"
+              className="w-full p-2.5 border border-slate-200 rounded-xl text-slate-700 bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none text-xs sm:text-sm shadow-2xl block"
             />
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t pt-4">
-          <div>
-            <label htmlFor="imageFront" className="block text-sm font-semibold text-gray-700">Front Image</label>
+        {/* IMAGE ATTACHMENTS SECTION */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-100 pt-5">
+          <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-100">
+            <label htmlFor="imageFront" className="block text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Front Image</label>
             <input
               id="imageFront"
               type="file"
               accept="image/*"
               key={`front-${fileInputKey}`}
               onChange={(e) => handleFileChange(e, 'front')}
-              className="w-full text-xs mt-1 text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+              className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer block"
             />
             {frontPreview && (
-              <div className="mt-2 relative inline-block group">
+              <div className="mt-3 relative inline-block group">
                 <Image
                   src={frontPreview}
                   alt="Cheque Front Preview"
                   width={192}
                   height={96}
                   unoptimized
-                  className="w-48 h-24 object-cover rounded border border-gray-300 shadow-sm"
+                  className="w-44 h-22 object-cover rounded-lg border border-slate-200 shadow-sm"
                 />
                 <button
                   type="button"
                   onClick={() => clearImage('front')}
                   aria-label="Remove front image"
-                  className="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full p-1 text-xs shadow hover:bg-rose-700 transition"
+                  className="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs shadow-md hover:bg-rose-700 transition cursor-pointer"
                 >
                   ✕
                 </button>
@@ -363,31 +410,31 @@ export default function ChequeForm({ onChequeAdded, token }: ChequeFormProps) {
             )}
           </div>
 
-          <div>
-            <label htmlFor="imageBack" className="block text-sm font-semibold text-gray-700">Back Image</label>
+          <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-100">
+            <label htmlFor="imageBack" className="block text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">Back Image</label>
             <input
               id="imageBack"
               type="file"
               accept="image/*"
               key={`back-${fileInputKey}`}
               onChange={(e) => handleFileChange(e, 'back')}
-              className="w-full text-xs mt-1 text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+              className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer block"
             />
             {backPreview && (
-              <div className="mt-2 relative inline-block group">
+              <div className="mt-3 relative inline-block group">
                 <Image
                   src={backPreview}
                   alt="Cheque Back Preview"
                   width={192}
                   height={96}
                   unoptimized
-                  className="w-48 h-24 object-cover rounded border border-gray-300 shadow-sm"
+                  className="w-44 h-22 object-cover rounded-lg border border-slate-200 shadow-sm"
                 />
                 <button
                   type="button"
                   onClick={() => clearImage('back')}
                   aria-label="Remove back image"
-                  className="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full p-1 text-xs shadow hover:bg-rose-700 transition"
+                  className="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs shadow-md hover:bg-rose-700 transition cursor-pointer"
                 >
                   ✕
                 </button>
@@ -397,15 +444,15 @@ export default function ChequeForm({ onChequeAdded, token }: ChequeFormProps) {
         </div>
 
         <div>
-          <label htmlFor="notes" className="block text-sm font-semibold text-gray-700">Internal Remarks / Notes</label>
+          <label htmlFor="notes" className="block text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Internal Remarks / Notes</label>
           <textarea
             id="notes"
             name="notes"
             value={formData.notes}
-            onChange={handleInputChange}
+            onChange={handleTextChange}
             rows={2}
             placeholder="Add relevant notes, invoice numbers, or ledger details..."
-            className="w-full mt-1 p-2 border border-gray-300 rounded-md text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none text-sm"
+            className="w-full p-2.5 border border-slate-200 rounded-xl text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none text-xs sm:text-sm shadow-2xs transition block"
           />
         </div>
 
@@ -413,7 +460,7 @@ export default function ChequeForm({ onChequeAdded, token }: ChequeFormProps) {
           type="submit"
           disabled={loading}
           aria-busy={loading}
-          className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold p-2.5 rounded-md transition duration-200 disabled:bg-slate-400 flex items-center justify-center space-x-2 shadow cursor-pointer"
+          className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold p-3 sm:p-3.5 rounded-xl transition duration-200 disabled:bg-slate-400 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg text-xs sm:text-sm cursor-pointer"
         >
           {loading ? (
             <>
