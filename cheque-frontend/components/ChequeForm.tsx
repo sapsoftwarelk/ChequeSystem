@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { getApiBaseUrl } from '@/app/config';
 import { OUR_COMPANY_ACCOUNTS } from '@/constants/bankAccounts';
@@ -38,6 +38,137 @@ export interface ChequeFormProps {
   token?: string | null;
 }
 
+// ---------------------------------------------------------------------------
+// MobileSelect: a compact, fully-styled replacement for native <select>.
+//
+// Native <select> hands option styling entirely to the browser/OS — on
+// mobile that means large, uncontrollable row heights and font sizes (this
+// is what made the Company Account / Bank Name lists look oversized).
+// This component renders its own list instead, so every row's font size
+// and padding is ours to control, while still being 100% viewport-safe:
+// it's a `fixed` overlay with a hard `max-h` and its own internal scroll,
+// so it can never push content off-screen the way an absolutely-positioned
+// dropdown anchored under a button can.
+// ---------------------------------------------------------------------------
+interface SelectOption {
+  value: string;
+  label: string;
+}
+
+interface MobileSelectProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: SelectOption[];
+  placeholder: string;
+  searchable?: boolean;
+  triggerClassName: string;
+}
+
+function MobileSelect({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder,
+  searchable = false,
+  triggerClassName,
+}: MobileSelectProps) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+
+  useEffect(() => {
+    if (!open) setQuery('');
+  }, [open]);
+
+  // Lock background scroll while the sheet is open, so dragging the list
+  // on a touch device doesn't also scroll the page underneath it.
+  useEffect(() => {
+    if (!open) return;
+    const original = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = original;
+    };
+  }, [open]);
+
+  const filtered =
+    searchable && query.trim()
+      ? options.filter((o) => o.label.toLowerCase().includes(query.trim().toLowerCase()))
+      : options;
+
+  const selectedLabel = options.find((o) => o.value === value)?.label;
+
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} className={triggerClassName}>
+        <span className="truncate">{selectedLabel || placeholder}</span>
+        <span className="text-slate-400 text-xs flex-shrink-0 ml-2">▼</span>
+      </button>
+
+      {open && (
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="relative bg-white w-full sm:max-w-sm sm:mx-4 rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[75vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-slate-100 flex-shrink-0">
+              <h4 className="text-sm font-bold text-slate-800">{label}</h4>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Close"
+                className="text-slate-400 hover:text-slate-600 w-7 h-7 flex items-center justify-center flex-shrink-0"
+              >
+                ✕
+              </button>
+            </div>
+
+            {searchable && (
+              <div className="p-3 border-b border-slate-100 flex-shrink-0">
+                <input
+                  autoFocus
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search..."
+                  className="w-full p-2.5 border border-slate-200 rounded-lg text-base focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                />
+              </div>
+            )}
+
+            <div className="overflow-y-auto flex-1">
+              {filtered.length === 0 ? (
+                <p className="p-4 text-xs text-slate-400 text-center">No matches found.</p>
+              ) : (
+                filtered.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      onChange(opt.value);
+                      setOpen(false);
+                    }}
+                    className={`w-full text-left px-4 py-2.5 text-sm border-b border-slate-50 last:border-none transition ${
+                      opt.value === value
+                        ? 'bg-blue-50 text-blue-700 font-semibold'
+                        : 'text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function ChequeForm({ onChequeAdded, token }: ChequeFormProps) {
   const [formData, setFormData] = useState({
     chequeType: 'INWARD',
@@ -59,19 +190,8 @@ export default function ChequeForm({ onChequeAdded, token }: ChequeFormProps) {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-  // Dropdown open/close state management
-  const [openDropdown, setOpenDropdown] = useState<'type' | 'account' | 'bank' | null>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setOpenDropdown(null);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
       if (frontPreview) URL.revokeObjectURL(frontPreview);
       if (backPreview) URL.revokeObjectURL(backPreview);
     };
@@ -84,7 +204,6 @@ export default function ChequeForm({ onChequeAdded, token }: ChequeFormProps) {
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    setOpenDropdown(null);
   };
 
   const handleTextChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -178,8 +297,18 @@ export default function ChequeForm({ onChequeAdded, token }: ChequeFormProps) {
 
   const isInward = formData.chequeType === 'INWARD';
 
+  const accountOptions: SelectOption[] = OUR_COMPANY_ACCOUNTS.map((a) => ({
+    value: a.label,
+    label: a.label,
+  }));
+
+  const bankOptions: SelectOption[] = SRI_LANKAN_BANKS.map((b) => ({
+    value: b.name,
+    label: b.name,
+  }));
+
   return (
-    <div className="relative w-full" ref={dropdownRef}>
+    <div className="relative w-full">
       {toast && (
         <div
           role="alert"
@@ -209,33 +338,34 @@ export default function ChequeForm({ onChequeAdded, token }: ChequeFormProps) {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-          {/* CUSTOM DROPDOWN: CHEQUE TYPE */}
-          <div className="relative">
-            <label className="block text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Cheque Type</label>
-            <button
-              type="button"
-              onClick={() => setOpenDropdown(openDropdown === 'type' ? null : 'type')}
-              className="w-full p-2.5 pr-8 border border-slate-200 rounded-xl text-slate-700 text-xs sm:text-sm bg-white font-medium shadow-2xs text-left truncate flex items-center justify-between transition focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-            >
-              <span className="truncate">{formData.chequeType === 'INWARD' ? 'Received (Inward)' : 'Issued (Outward - Our Cheque)'}</span>
-              <span className="text-slate-400 text-xs">▼</span>
-            </button>
-            {openDropdown === 'type' && (
-              <div className="absolute z-30 mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
-                <div
-                  onClick={() => handleInputChange('chequeType', 'INWARD')}
-                  className="p-2.5 text-xs sm:text-sm hover:bg-slate-50 cursor-pointer text-slate-700 font-medium border-b border-slate-100"
-                >
-                  Received (Inward)
-                </div>
-                <div
-                  onClick={() => handleInputChange('chequeType', 'OUTWARD')}
-                  className="p-2.5 text-xs sm:text-sm hover:bg-slate-50 cursor-pointer text-slate-700 font-medium"
-                >
-                  Issued (Outward - Our Cheque)
-                </div>
-              </div>
-            )}
+          {/* CHEQUE TYPE — a 2-way toggle instead of a dropdown. With only
+              two possible values, a picker of any kind is unnecessary
+              interaction overhead, and a segmented control is naturally
+              compact on mobile with zero overflow risk. */}
+          <div>
+            <label className="block text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+              Cheque Type
+            </label>
+            <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-xl">
+              <button
+                type="button"
+                onClick={() => handleInputChange('chequeType', 'INWARD')}
+                className={`py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition ${
+                  isInward ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'
+                }`}
+              >
+                Inward
+              </button>
+              <button
+                type="button"
+                onClick={() => handleInputChange('chequeType', 'OUTWARD')}
+                className={`py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition ${
+                  !isInward ? 'bg-white text-amber-700 shadow-sm' : 'text-slate-500'
+                }`}
+              >
+                Outward
+              </button>
+            </div>
           </div>
 
           <div>
@@ -248,40 +378,25 @@ export default function ChequeForm({ onChequeAdded, token }: ChequeFormProps) {
               onChange={handleTextChange}
               required
               placeholder="e.g. 102458"
-              className="w-full p-2.5 border border-slate-200 rounded-xl text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none font-mono text-xs sm:text-sm shadow-2xs transition block"
+              className="w-full p-2.5 border border-slate-200 rounded-xl text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none font-mono text-base sm:text-sm shadow-2xs transition block"
             />
           </div>
 
-          {/* CUSTOM DROPDOWN: COMPANY ACCOUNT */}
-          <div className="col-span-1 sm:col-span-2 relative">
+          {/* COMPANY ACCOUNT — custom compact picker */}
+          <div className="col-span-1 sm:col-span-2">
             <label className="block text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
               {isInward ? 'Target Deposit Account (Our Bank Account)' : 'Source Issuing Account (Which of Our Accounts Issued This Cheque)'}
             </label>
-            <button
-              type="button"
-              onClick={() => setOpenDropdown(openDropdown === 'account' ? null : 'account')}
-              className={`w-full p-2.5 pr-8 border rounded-xl text-xs sm:text-sm font-semibold text-left truncate flex items-center justify-between transition shadow-2xs outline-none ${
+            <MobileSelect
+              label={isInward ? 'Select Target Deposit Account' : 'Select Issuing Bank Account'}
+              value={formData.ourCompanyAccount}
+              onChange={(val) => handleInputChange('ourCompanyAccount', val)}
+              options={accountOptions}
+              placeholder={isInward ? '-- Select Our Target Deposit Account --' : '-- Select Our Issuing Bank Account --'}
+              triggerClassName={`w-full p-2.5 border rounded-xl text-base sm:text-sm font-semibold text-left flex items-center justify-between shadow-2xs transition outline-none ${
                 isInward ? 'border-emerald-200 bg-emerald-50/20 text-emerald-900' : 'border-orange-200 bg-orange-50/20 text-orange-900'
               }`}
-            >
-              <span className="truncate">
-                {formData.ourCompanyAccount || (isInward ? '-- Select Our Target Deposit Account --' : '-- Select Our Issuing Bank Account --')}
-              </span>
-              <span className="text-slate-400 text-xs">▼</span>
-            </button>
-            {openDropdown === 'account' && (
-              <div className="absolute z-30 mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto">
-                {OUR_COMPANY_ACCOUNTS.map((account) => (
-                  <div
-                    key={account.id}
-                    onClick={() => handleInputChange('ourCompanyAccount', account.label)}
-                    className="p-2.5 text-xs sm:text-sm hover:bg-slate-50 cursor-pointer text-slate-700 border-b border-slate-100 last:border-none truncate"
-                  >
-                    {account.label}
-                  </div>
-                ))}
-              </div>
-            )}
+            />
             <p className="text-[11px] text-slate-400 mt-1.5">
               {isInward
                 ? 'Select the internal account where this received cheque will be deposited.'
@@ -289,32 +404,20 @@ export default function ChequeForm({ onChequeAdded, token }: ChequeFormProps) {
             </p>
           </div>
 
-          {/* CUSTOM DROPDOWN: BANK NAME */}
-          <div className="relative">
+          {/* BANK NAME — custom compact, searchable picker (24 banks) */}
+          <div>
             <label className="block text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
               {isInward ? 'Drawn Bank Name' : 'Issuing Bank Name'}
             </label>
-            <button
-              type="button"
-              onClick={() => setOpenDropdown(openDropdown === 'bank' ? null : 'bank')}
-              className="w-full p-2.5 pr-8 border border-slate-200 rounded-xl text-slate-700 text-xs sm:text-sm bg-white font-medium shadow-2xs text-left truncate flex items-center justify-between transition focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-            >
-              <span className="truncate">{formData.bankName || '-- Select Local Bank --'}</span>
-              <span className="text-slate-400 text-xs">▼</span>
-            </button>
-            {openDropdown === 'bank' && (
-              <div className="absolute z-30 mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto">
-                {SRI_LANKAN_BANKS.map((bank) => (
-                  <div
-                    key={bank.code}
-                    onClick={() => handleInputChange('bankName', bank.name)}
-                    className="p-2.5 text-xs sm:text-sm hover:bg-slate-50 cursor-pointer text-slate-700 border-b border-slate-100 last:border-none truncate"
-                  >
-                    {bank.name}
-                  </div>
-                ))}
-              </div>
-            )}
+            <MobileSelect
+              label="Select Bank"
+              value={formData.bankName}
+              onChange={(val) => handleInputChange('bankName', val)}
+              options={bankOptions}
+              placeholder="-- Select Local Bank --"
+              searchable
+              triggerClassName="w-full p-2.5 border border-slate-200 rounded-xl text-slate-700 text-base sm:text-sm bg-white font-medium text-left flex items-center justify-between shadow-2xs transition focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+            />
           </div>
 
           <div>
@@ -326,7 +429,7 @@ export default function ChequeForm({ onChequeAdded, token }: ChequeFormProps) {
               value={formData.branchName}
               onChange={handleTextChange}
               placeholder="e.g. Veyangoda, Colombo 07"
-              className="w-full p-2.5 border border-slate-200 rounded-xl text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none text-xs sm:text-sm shadow-2xs transition block"
+              className="w-full p-2.5 border border-slate-200 rounded-xl text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none text-base sm:text-sm shadow-2xs transition block"
             />
           </div>
 
@@ -342,7 +445,7 @@ export default function ChequeForm({ onChequeAdded, token }: ChequeFormProps) {
               onChange={handleTextChange}
               required
               placeholder="0.00"
-              className="w-full p-2.5 border border-slate-200 rounded-xl text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none text-xs sm:text-sm shadow-2xs transition block"
+              className="w-full p-2.5 border border-slate-200 rounded-xl text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none text-base sm:text-sm shadow-2xs transition block"
             />
           </div>
 
@@ -358,7 +461,7 @@ export default function ChequeForm({ onChequeAdded, token }: ChequeFormProps) {
               onChange={handleTextChange}
               required
               placeholder={isInward ? 'e.g. Customer / Vendor Name' : 'e.g. Supplier / Recipient Name'}
-              className="w-full p-2.5 border border-slate-200 rounded-xl text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none text-xs sm:text-sm shadow-2xs transition block"
+              className="w-full p-2.5 border border-slate-200 rounded-xl text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none text-base sm:text-sm shadow-2xs transition block"
             />
           </div>
 
@@ -371,7 +474,7 @@ export default function ChequeForm({ onChequeAdded, token }: ChequeFormProps) {
               value={formData.chequeDate}
               onChange={handleTextChange}
               required
-              className="w-full p-2.5 border border-slate-200 rounded-xl text-slate-700 bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none text-xs sm:text-sm shadow-2xl block"
+              className="w-full p-2.5 border border-slate-200 rounded-xl text-slate-700 bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none text-base sm:text-sm shadow-2xl block"
             />
           </div>
         </div>
@@ -452,7 +555,7 @@ export default function ChequeForm({ onChequeAdded, token }: ChequeFormProps) {
             onChange={handleTextChange}
             rows={2}
             placeholder="Add relevant notes, invoice numbers, or ledger details..."
-            className="w-full p-2.5 border border-slate-200 rounded-xl text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none text-xs sm:text-sm shadow-2xs transition block"
+            className="w-full p-2.5 border border-slate-200 rounded-xl text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none text-base sm:text-sm shadow-2xs transition block"
           />
         </div>
 
@@ -460,7 +563,7 @@ export default function ChequeForm({ onChequeAdded, token }: ChequeFormProps) {
           type="submit"
           disabled={loading}
           aria-busy={loading}
-          className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold p-3 sm:p-3.5 rounded-xl transition duration-200 disabled:bg-slate-400 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg text-xs sm:text-sm cursor-pointer"
+          className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold p-3 sm:p-3.5 rounded-xl transition duration-200 disabled:bg-slate-400 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg text-sm cursor-pointer"
         >
           {loading ? (
             <>

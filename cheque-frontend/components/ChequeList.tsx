@@ -42,6 +42,136 @@ const buildImageUrl = (baseUrl: string, path?: string | null): string | undefine
   return `${baseUrlWithoutApi}${cleanPath}`;
 };
 
+// ---------------------------------------------------------------------------
+// MobileSelect: a compact, fully-styled replacement for native <select>.
+//
+// Native <select> hands option styling entirely to the browser/OS — on
+// mobile that means large, uncontrollable row heights and font sizes. This
+// component renders its own list instead, so every row's font size and
+// padding is ours to control, while still being 100% viewport-safe: it's a
+// `fixed` overlay with a hard `max-h` and its own internal scroll, so it
+// can never push content off-screen the way an absolutely-positioned
+// dropdown anchored under a button can.
+// ---------------------------------------------------------------------------
+interface SelectOption {
+  value: string;
+  label: string;
+}
+
+interface MobileSelectProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: SelectOption[];
+  placeholder: string;
+  searchable?: boolean;
+  triggerClassName: string;
+}
+
+function MobileSelect({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder,
+  searchable = false,
+  triggerClassName,
+}: MobileSelectProps) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+
+  useEffect(() => {
+    if (!open) setQuery('');
+  }, [open]);
+
+  // Lock background scroll while the sheet is open, so dragging the list
+  // on a touch device doesn't also scroll the page underneath it.
+  useEffect(() => {
+    if (!open) return;
+    const original = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = original;
+    };
+  }, [open]);
+
+  const filtered =
+    searchable && query.trim()
+      ? options.filter((o) => o.label.toLowerCase().includes(query.trim().toLowerCase()))
+      : options;
+
+  const selectedLabel = options.find((o) => o.value === value)?.label;
+
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} className={triggerClassName}>
+        <span className="truncate">{selectedLabel || placeholder}</span>
+        <span className="text-slate-400 text-xs flex-shrink-0 ml-2">▼</span>
+      </button>
+
+      {open && (
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="relative bg-white w-full sm:max-w-sm sm:mx-4 rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[75vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-slate-100 flex-shrink-0">
+              <h4 className="text-sm font-bold text-slate-800">{label}</h4>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Close"
+                className="text-slate-400 hover:text-slate-600 w-7 h-7 flex items-center justify-center flex-shrink-0"
+              >
+                ✕
+              </button>
+            </div>
+
+            {searchable && (
+              <div className="p-3 border-b border-slate-100 flex-shrink-0">
+                <input
+                  autoFocus
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search..."
+                  className="w-full p-2.5 border border-slate-200 rounded-lg text-base focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                />
+              </div>
+            )}
+
+            <div className="overflow-y-auto flex-1">
+              {filtered.length === 0 ? (
+                <p className="p-4 text-xs text-slate-400 text-center">No matches found.</p>
+              ) : (
+                filtered.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      onChange(opt.value);
+                      setOpen(false);
+                    }}
+                    className={`w-full text-left px-4 py-2.5 text-sm border-b border-slate-50 last:border-none transition ${
+                      opt.value === value
+                        ? 'bg-blue-50 text-blue-700 font-semibold'
+                        : 'text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function ChequeList({
   token,
   refreshKey,
@@ -314,6 +444,21 @@ export default function ChequeList({
     }
   };
 
+  const accountOptions: SelectOption[] = OUR_COMPANY_ACCOUNTS.map((a) => ({
+    value: a.label,
+    label: a.label,
+  }));
+
+  const statusOptions: SelectOption[] = [
+    { value: 'PENDING', label: 'PENDING' },
+    { value: 'DEPOSITED', label: 'DEPOSITED (Inward - Cleared)' },
+    { value: 'REALISED', label: 'REALISED (Outward - Cleared)' },
+    { value: 'BOUNCED', label: 'BOUNCED / RETURNED' },
+    { value: 'CANCELLED', label: 'CANCELLED' },
+  ];
+
+  const editIsInward = editingCheque?.chequeType === 'INWARD';
+
   return (
     <div className="bg-white p-3 sm:p-6 rounded-lg shadow-md border border-gray-200 max-w-7xl mx-auto space-y-4 overflow-x-hidden">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-3 gap-3">
@@ -337,22 +482,17 @@ export default function ChequeList({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 bg-gray-50 p-3 rounded-md border border-gray-100">
         <div>
-          <label htmlFor="accountFilter" className="block text-xs font-semibold text-gray-600 mb-1">
+          <label className="block text-xs font-semibold text-gray-600 mb-1">
             Filter By Company Account
           </label>
-          <select
-            id="accountFilter"
+          <MobileSelect
+            label="Filter By Company Account"
             value={selectedAccount}
-            onChange={(e) => setSelectedAccount(e.target.value)}
-            className="w-full p-2.5 sm:p-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-          >
-            <option value="">-- All Company Accounts --</option>
-            {OUR_COMPANY_ACCOUNTS.map((account) => (
-              <option key={account.id} value={account.label}>
-                {account.label}
-              </option>
-            ))}
-          </select>
+            onChange={setSelectedAccount}
+            options={accountOptions}
+            placeholder="-- All Company Accounts --"
+            triggerClassName="w-full p-2.5 sm:p-2 border border-gray-300 rounded-md text-sm bg-white text-left flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
         </div>
 
         <div>
@@ -365,7 +505,7 @@ export default function ChequeList({
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Type cheque #, party name, or account..."
-            className="w-full p-2.5 sm:p-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full p-2.5 sm:p-2 border border-gray-300 rounded-md text-base sm:text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
         </div>
       </div>
@@ -706,65 +846,71 @@ export default function ChequeList({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-gray-700 mb-1">Cheque Type *</label>
-                  <select
-                    value={editingCheque.chequeType}
-                    onChange={(e) =>
-                      setEditingCheque((prev) =>
-                        prev ? { ...prev, chequeType: e.target.value as 'INWARD' | 'OUTWARD' } : null
-                      )
-                    }
-                    className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500 bg-white"
-                    required
-                  >
-                    <option value="INWARD">INWARD (Received)</option>
-                    <option value="OUTWARD">OUTWARD (Issued)</option>
-                  </select>
+                  {/* 2-way toggle instead of a dropdown — same reasoning as
+                      the Add Cheque form: only 2 possible values, so a
+                      picker of any kind is unnecessary. */}
+                  <div className="grid grid-cols-2 gap-1 p-1 bg-gray-100 rounded-md">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditingCheque((prev) => (prev ? { ...prev, chequeType: 'INWARD' } : null))
+                      }
+                      className={`py-2 rounded text-[11px] font-semibold transition ${
+                        editIsInward ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-500'
+                      }`}
+                    >
+                      INWARD
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditingCheque((prev) => (prev ? { ...prev, chequeType: 'OUTWARD' } : null))
+                      }
+                      className={`py-2 rounded text-[11px] font-semibold transition ${
+                        !editIsInward ? 'bg-white text-amber-700 shadow-sm' : 'text-gray-500'
+                      }`}
+                    >
+                      OUTWARD
+                    </button>
+                  </div>
                 </div>
 
                 <div>
                   <label className="block font-semibold text-gray-700 mb-1">Status</label>
-                  <select
+                  <MobileSelect
+                    label="Select Status"
                     value={editingCheque.status || 'PENDING'}
-                    onChange={(e) =>
-                      setEditingCheque((prev) => (prev ? { ...prev, status: e.target.value } : null))
+                    onChange={(val) =>
+                      setEditingCheque((prev) => (prev ? { ...prev, status: val } : null))
                     }
-                    className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500 bg-white"
-                  >
-                    <option value="PENDING">PENDING</option>
-                    <option value="DEPOSITED">DEPOSITED (Inward - Cleared)</option>
-                    <option value="REALISED">REALISED (Outward - Cleared)</option>
-                    <option value="BOUNCED">BOUNCED / RETURNED</option>
-                    <option value="CANCELLED">CANCELLED</option>
-                  </select>
+                    options={statusOptions}
+                    placeholder="Select Status"
+                    triggerClassName="w-full p-2.5 sm:p-2 border rounded bg-white text-left flex items-center justify-between focus:ring-1 focus:ring-blue-500"
+                  />
                 </div>
               </div>
 
               <div>
                 <label className="block font-semibold text-gray-700 mb-1">Company Account *</label>
-                <select
+                <MobileSelect
+                  label="Select Company Account"
                   value={editingCheque.ourCompanyAccount || editingCheque.ourAccount || editingCheque.accountNumber || ''}
-                  onChange={(e) =>
+                  onChange={(val) =>
                     setEditingCheque((prev) =>
                       prev
                         ? {
                             ...prev,
-                            ourCompanyAccount: e.target.value,
-                            ourAccount: e.target.value,
-                            accountNumber: e.target.value,
+                            ourCompanyAccount: val,
+                            ourAccount: val,
+                            accountNumber: val,
                           }
                         : null
                     )
                   }
-                  className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500 bg-white"
-                  required
-                >
-                  <option value="">-- Select Company Account --</option>
-                  {OUR_COMPANY_ACCOUNTS.map((acc) => (
-                    <option key={acc.id} value={acc.label}>
-                      {acc.label}
-                    </option>
-                  ))}
-                </select>
+                  options={accountOptions}
+                  placeholder="-- Select Company Account --"
+                  triggerClassName="w-full p-2.5 sm:p-2 border rounded bg-white text-left flex items-center justify-between focus:ring-1 focus:ring-blue-500"
+                />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -776,7 +922,7 @@ export default function ChequeList({
                     onChange={(e) =>
                       setEditingCheque((prev) => (prev ? { ...prev, bankName: e.target.value } : null))
                     }
-                    className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500"
+                    className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500 text-base sm:text-xs"
                     required
                   />
                 </div>
@@ -789,7 +935,7 @@ export default function ChequeList({
                     onChange={(e) =>
                       setEditingCheque((prev) => (prev ? { ...prev, branchName: e.target.value } : null))
                     }
-                    className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500"
+                    className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500 text-base sm:text-xs"
                   />
                 </div>
               </div>
@@ -803,7 +949,7 @@ export default function ChequeList({
                     onChange={(e) =>
                       setEditingCheque((prev) => (prev ? { ...prev, chequeNo: e.target.value } : null))
                     }
-                    className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500"
+                    className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500 text-base sm:text-xs"
                     required
                   />
                 </div>
@@ -817,7 +963,7 @@ export default function ChequeList({
                     onChange={(e) =>
                       setEditingCheque((prev) => (prev ? { ...prev, amount: e.target.value } : null))
                     }
-                    className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500"
+                    className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500 text-base sm:text-xs"
                     required
                   />
                 </div>
@@ -832,7 +978,7 @@ export default function ChequeList({
                     onChange={(e) =>
                       setEditingCheque((prev) => (prev ? { ...prev, partyName: e.target.value } : null))
                     }
-                    className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500"
+                    className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500 text-base sm:text-xs"
                     required
                   />
                 </div>
@@ -845,7 +991,7 @@ export default function ChequeList({
                     onChange={(e) =>
                       setEditingCheque((prev) => (prev ? { ...prev, chequeDate: e.target.value } : null))
                     }
-                    className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500"
+                    className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500 text-base sm:text-xs"
                     required
                   />
                 </div>
@@ -901,7 +1047,7 @@ export default function ChequeList({
                   onChange={(e) =>
                     setEditingCheque((prev) => (prev ? { ...prev, notes: e.target.value } : null))
                   }
-                  className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500"
+                  className="w-full p-2.5 sm:p-2 border rounded focus:ring-1 focus:ring-blue-500 text-base sm:text-xs"
                 />
               </div>
 

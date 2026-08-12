@@ -134,12 +134,12 @@ export default function Home() {
   const isAdmin = user.role === 'ADMIN';
 
   return (
-    <main className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <main className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
         {/* HEADER BAR */}
-        <header className="flex justify-between items-center bg-slate-800 text-white p-5 rounded-lg shadow-md">
+        <header className="flex justify-between items-center bg-slate-800 text-white p-5 rounded-2xl shadow-md">
           <div>
-            <h1 className="text-2xl font-black tracking-tight">CHEQUE MANAGE MASTER</h1>
+            <h1 className="text-xl sm:text-2xl font-black tracking-tight">CHEQUE MANAGE MASTER</h1>
             <p className="text-xs text-slate-400 mt-0.5">
               Welcome back,{' '}
               <span className="text-blue-400 font-bold uppercase">
@@ -150,14 +150,14 @@ export default function Home() {
           <button
             type="button"
             onClick={handleLogout}
-            className="bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold px-3 py-1.5 rounded transition cursor-pointer"
+            className="bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition cursor-pointer"
           >
             🚪 Log Out
           </button>
         </header>
 
         {/* REAL-TIME SYNC BAR */}
-        <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
+        <div className="flex justify-between items-center bg-white p-3.5 rounded-2xl border border-gray-200/80 shadow-sm">
           <div className="text-xs text-slate-600 flex items-center space-x-2 font-medium">
             <span
               className={`h-2.5 w-2.5 rounded-full ${
@@ -176,7 +176,7 @@ export default function Home() {
             type="button"
             onClick={() => fetchCheques()}
             disabled={isSyncing}
-            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded shadow-sm disabled:opacity-50 transition cursor-pointer flex items-center space-x-1"
+            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-xl shadow-sm disabled:opacity-50 transition cursor-pointer flex items-center space-x-1"
           >
             <span>{isSyncing ? '🔄 Syncing...' : '🔄 Refresh Data'}</span>
           </button>
@@ -185,28 +185,43 @@ export default function Home() {
         {/* FINANCIAL SUMMARY METRICS GRID */}
         <DashboardStats cheques={cheques} />
 
-        {/* DYNAMIC REGISTRY INTERFACES WORKSPACE */}
-        <div className="grid grid-cols-1 gap-6">
-          {/* ADMIN ONLY: Add Cheque Entry Form */}
-          {isAdmin ? (
-            <ChequeForm onChequeAdded={() => fetchCheques()} token={token} />
-          ) : (
-            <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs p-3 rounded font-semibold">
-              🔒 Standard User profile constraints active. Entry logs collection additions are managed by System Admins.
+        {/* --- DYNAMIC WORKSPACE GRID LAYOUT --- */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          
+          {/* LEFT COLUMN: Entry Form Only (Span 4 Columns on Desktop) */}
+          <div className="lg:col-span-4 lg:sticky lg:top-6">
+            {isAdmin ? (
+              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
+                <ChequeForm onChequeAdded={() => fetchCheques()} token={token} />
+              </div>
+            ) : (
+              <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs p-4 rounded-2xl font-semibold shadow-sm">
+                🔒 Standard User profile constraints active. Entry logs collection additions are managed by System Admins.
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT COLUMN: Master Cheque List / Table (Span 8 Columns on Desktop) */}
+          <div className="lg:col-span-8">
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 sm:p-6">
+              <ChequeList
+                cheques={cheques}
+                onStatusUpdated={() => fetchCheques()}
+                isAdmin={isAdmin}
+                token={token}
+              />
             </div>
-          )}
+          </div>
 
-          {/* ADMIN ONLY: Audit Search & Print Engine */}
-          {isAdmin && <ChequeReport token={token} />}
-
-          {/* BOTH ROLES VIEW */}
-          <ChequeList
-            cheques={cheques}
-            onStatusUpdated={() => fetchCheques()}
-            isAdmin={isAdmin}
-            token={token}
-          />
         </div>
+
+        {/* --- FULL WIDTH SECTION: Audit Search & Report Engine --- */}
+        {isAdmin && (
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 sm:p-6">
+            <ChequeReport token={token} />
+          </div>
+        )}
+
       </div>
     </main>
   );
